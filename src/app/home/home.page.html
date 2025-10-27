@@ -1,0 +1,179 @@
+<!--menu button-->
+<ion-header class="ion-no-border custom-toolbar-background" [translucent]="true">
+  <div #topBar>
+    <ion-fab *ngIf="bookingStage" vertical="top" horizontal="end" class="lowered-fab">
+      <ion-fab-button size="large" *ngIf="!currentState" color="danger" (click)="SwitchOn()">
+        <ion-icon *ngIf="!approve" name="power-sharp" color="light"></ion-icon>
+        <ion-spinner *ngIf="approve" name="crescent"></ion-spinner>
+      </ion-fab-button>
+      <ion-fab-button size="large" *ngIf="currentState" color="success" (click)="SwitchOff()">
+        <ion-icon *ngIf="!approve" name="power-sharp" color="light"></ion-icon>
+        <ion-spinner *ngIf="approve" name="crescent"></ion-spinner>
+      </ion-fab-button>
+    </ion-fab>
+
+    <ion-fab *ngIf="trackingStage" vertical="top" horizontal="start" style="margin-top: 20px;">
+      <ion-fab-button color="success" (click)="EnterChat()">
+        <ion-icon name="chatbubbles"></ion-icon>
+      </ion-fab-button>
+    </ion-fab>
+
+    <ion-fab *ngIf="trackingStage" vertical="top" horizontal="end" style="margin-top: 20px;">
+      <ion-fab-button color="danger" (click)="presentCancelRideActionSheet()">
+        <ion-icon name="close-sharp"></ion-icon>
+      </ion-fab-button>
+    </ion-fab>
+
+    <ion-fab *ngIf="confirmStage" vertical="top" horizontal="end" style="margin-top: 20px;">
+      <ion-fab-button color="danger" (click)="presentCancelRideActionSheet()">
+        <ion-icon name="close-sharp"></ion-icon>
+      </ion-fab-button>
+    </ion-fab>
+  </div>
+</ion-header>
+
+<!--Capacitor Google Map-->
+
+<ion-content [fullscreen]="true" scroll-y="false">
+  <capacitor-google-maps #map></capacitor-google-maps>
+  <ion-fab *ngIf="bookingStage && showResetLocationButton" vertical="bottom" horizontal="end" style="margin-bottom: 200px;">
+    <ion-fab-button color="light" (click)="resetLocation()">
+      <ion-icon name="locate"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>
+
+<ion-footer [translucent]="true" class="ion-no-border">
+  <div #bottomBar>
+    <ion-row>
+      <!--Price Section-->
+      <ion-list class="shadow-top" *ngIf="bookingStage" lines="full">
+        <ion-item-group class="ion-margin-horizontal ion-margin-bottom">
+          <ion-button shape="round" class="main-button" color="primary" size="large" type="submit" expand="block">
+            <ion-icon slot="start" name="cash-sharp" color="light"></ion-icon>
+            <ion-label color="light">{{ 'HOME.EARNINGS' | translate }}{{earnings}}</ion-label>
+          </ion-button>
+        </ion-item-group>
+      </ion-list>
+
+      <!-- Accept Ride Section -->
+      <ion-list class='shadow-top book modern-accept-card' *ngIf="confirmStage" lines="none" (click)="AcceptRide()">
+        <div class="accept-ride-content" *ngIf="distanceText">
+          <div class="ride-info-row">
+            <div class="trip-details">
+              <ion-icon name="time-outline"></ion-icon> {{durationText}}
+              <ion-icon name="locate-outline" class="ml-2"></ion-icon> {{distanceText}}
+            </div>
+            <div class="price-tag">${{riderInfo?.price}}</div>
+          </div>
+          
+          <div class="location-container">
+            <ion-icon name="location"></ion-icon>
+            <span>{{riderInfo?.Rider_Location}}</span>
+          </div>
+          
+          <div class="countdown-container">
+            <div class="timer-indicator">
+              {{ 'HOME.TIME_LEFT' | translate }} <strong>{{riderInfo?.countDown}}</strong> {{ 'HOME.SECONDS' | translate }}
+            </div>
+          </div>
+          
+          <ion-button shape="round" class="accept-button" color="light" type="submit" expand="block">
+            <ion-icon slot="start" name="checkmark-sharp"></ion-icon>
+            <span>{{ 'HOME.ACCEPT' | translate }}</span>
+          </ion-button>
+        </div>
+
+        <!-- Loading state -->
+        <div class="accept-ride-content" *ngIf="!distanceText">
+          <div class="ride-info-row">
+            <div class="trip-details">
+              <ion-skeleton-text [animated]="true" style="width: 120px;"></ion-skeleton-text>
+            </div>
+            <div class="price-tag">
+              <ion-skeleton-text [animated]="true" style="width: 60px;"></ion-skeleton-text>
+            </div>
+          </div>
+          
+          <div class="location-container">
+            <ion-skeleton-text [animated]="true" style="width: 180px;"></ion-skeleton-text>
+          </div>
+          
+          <div class="countdown-container">
+            <div class="timer-indicator">
+              <ion-skeleton-text [animated]="true" style="width: 150px;"></ion-skeleton-text>
+            </div>
+          </div>
+          
+          <ion-button disabled shape="round" class="accept-button" color="light" expand="block">
+            <ion-skeleton-text [animated]="true" style="width: 120px;"></ion-skeleton-text>
+          </ion-button>
+        </div>
+      </ion-list>
+
+      <!--Pick Ride Section-->
+      <ion-list class='shadow-top' *ngIf="trackingStage || drivingToDestinationStage" lines="none">
+        <ion-list-header class="ion-margin-bottom">
+          <ion-label class="ion-text-center">
+            <h1>{{ 'HOME.ARRIVAL_IN' | translate }} {{durationText}}</h1>
+          </ion-label>
+        </ion-list-header>
+
+        <div class="card">
+          <ion-item>
+            <ion-item>
+              <ion-label>
+                <h1>{{ 'HOME.YOUR_RIDER_IS' | translate }} {{riderInfo.Rider_name}}</h1>
+                <p><strong>{{ 'HOME.DESTINATION' | translate }} </strong>{{riderInfo.Rider_Destination}}</p>
+              </ion-label>
+            </ion-item>
+            <ion-item class="price">
+              <ion-avatar>
+                <ion-img [src]="riderInfo.Rider_imgUrl"></ion-img>
+              </ion-avatar>
+              <ion-label>
+                <p><ion-icon slot="icon-only" color="secondary" name="star"></ion-icon> 5 </p>
+              </ion-label>
+            </ion-item>
+          </ion-item>
+
+          <ion-item>
+            <ion-item *ngIf="cash">
+              <ion-label>
+                <h1><ion-icon color='primary' slot="icon-only" name="cash"></ion-icon> Cash</h1>
+              </ion-label>
+            </ion-item>
+            <ion-item *ngIf="!cash">
+              <ion-label>
+                <h1><ion-icon color='primary' slot="icon-only" name="card"></ion-icon> Card</h1>
+              </ion-label>
+            </ion-item>
+            <ion-item class="price">
+              <ion-label>
+                <h1>${{riderInfo.price}}</h1>
+              </ion-label>
+            </ion-item>
+          </ion-item>
+        </div>
+
+        <!--pick up button and drop off button-->
+        <ion-item-group class="ion-margin-horizontal ion-margin-bottom">
+          <ion-button shape="round" class="main-button" *ngIf="trackingStage" color="success" size="large" type="submit" (click)="PickUp()" expand="block">
+            <ion-icon slot="start" name="checkmark-sharp" color="light"></ion-icon>
+            <ion-label color="light">{{ 'HOME.PICK_UP' | translate }}</ion-label>
+          </ion-button>
+
+          <ion-button *ngIf="drivingToDestinationStage" shape="round" class="main-button" color="success" size="large" type="submit" (click)="DropOff()" expand="block">
+            <ion-icon slot="start" name="checkmark-sharp" color="light"></ion-icon>
+            <ion-label color="light">{{ 'HOME.DROP_OFF' | translate }}</ion-label>
+          </ion-button>
+
+          <ion-button *ngIf="trackingStage || drivingToDestinationStage" shape="round" class="main-button" color="primary" size="large" type="submit" (click)="Navigate()" expand="block">
+            <ion-icon slot="start" name="map-sharp" color="light"></ion-icon>
+            <ion-label color="light">{{ 'HOME.NAVIGATE' | translate }}</ion-label>
+          </ion-button>
+        </ion-item-group>
+      </ion-list>
+    </ion-row>
+  </div>
+</ion-footer>

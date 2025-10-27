@@ -1,0 +1,149 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>{{ 'DETAILS.TITLE' | translate }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding custom-content">
+  <form [formGroup]="form">
+    <!-- Profile Image Section -->
+    <div class="profile-image-section">
+      <div class="image-container" (click)="presentImageSourceActionSheet()">
+        <ng-container *ngIf="!isUploading; else uploadingTemplate">
+          <img [src]="imageUrl" *ngIf="imageUrl" alt="Profile photo">
+          <div class="placeholder" *ngIf="!imageUrl">
+            <ion-icon name="person"></ion-icon>
+          </div>
+          <div class="overlay">
+            <ion-icon name="camera"></ion-icon>
+          </div>
+        </ng-container>
+        <ng-template #uploadingTemplate>
+          <div class="upload-loader">
+            <ion-spinner name="circular"></ion-spinner>
+            <p>{{ 'DETAILS.UPLOAD_STATUS.UPLOADING' | translate }}</p>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+
+    <!-- Rest of the form with updated styling -->
+    <div class="form-container">
+      <ion-list>
+        <!-- Personal Information -->
+        <ion-item-group class="custom-group">
+          <ion-item-divider>
+            <ion-label>{{ 'DETAILS.PERSONAL_INFO.TITLE' | translate }}</ion-label>
+          </ion-item-divider>
+
+          <ion-item [class.ion-invalid]="form.get('fullname')?.touched && form.get('fullname')?.invalid">
+            <ion-label position="floating">{{ 'DETAILS.PERSONAL_INFO.FIRST_NAME' | translate }}</ion-label>
+            <ion-input 
+              formControlName="fullname" 
+              type="text">
+            </ion-input>
+            <ion-note slot="error" *ngIf="form.get('fullname')?.touched && form.get('fullname')?.errors?.['required']">
+              {{ 'VALIDATION.REQUIRED' | translate }}
+            </ion-note>
+          </ion-item>
+
+          <ion-item>
+            <ion-input 
+              formControlName="lastname" 
+              [placeholder]="'DETAILS.PERSONAL_INFO.LAST_NAME' | translate">
+            </ion-input>
+          </ion-item>
+
+          <ion-item>
+            <ion-input 
+              formControlName="email" 
+              type="email" 
+              [placeholder]="'DETAILS.PERSONAL_INFO.EMAIL' | translate">
+            </ion-input>
+          </ion-item>
+        </ion-item-group>
+
+        <!-- Vehicle Information -->
+        <ion-item-group class="custom-group">
+          <ion-item-divider>
+            <ion-label>{{ 'DETAILS.VEHICLE_INFO.TITLE' | translate }}</ion-label>
+          </ion-item-divider>
+          <ion-item>
+            <ion-input 
+              formControlName="plateNumber" 
+              [placeholder]="'DETAILS.VEHICLE_INFO.PLATE_NUMBER' | translate">
+            </ion-input>
+          </ion-item>
+
+          <ion-item>
+            <ion-select 
+              formControlName="carType" 
+              [placeholder]="'DETAILS.VEHICLE_INFO.CAR_TYPE' | translate">
+              <ion-select-option *ngFor="let type of cartypes" [value]="type.id">
+                {{type.name}}
+              </ion-select-option>
+            </ion-select>
+          </ion-item>
+
+          <ion-item>
+            <ion-input 
+              formControlName="carName" 
+              [placeholder]="'DETAILS.VEHICLE_INFO.CAR_NAME' | translate">
+            </ion-input>
+          </ion-item>
+
+          <ion-item>
+            <ion-input 
+              formControlName="mileage" 
+              type="number" 
+              [placeholder]="'DETAILS.VEHICLE_INFO.MILEAGE' | translate">
+            </ion-input>
+          </ion-item>
+        </ion-item-group>
+
+        <!-- License Information -->
+        <ion-item-group class="custom-group">
+          <ion-item-divider>
+            <ion-label>{{ 'DETAILS.LICENSE_INFO.TITLE' | translate }}</ion-label>
+          </ion-item-divider>
+          
+          <ion-item>
+            <ion-input 
+              formControlName="driverLicense" 
+              [placeholder]="'DETAILS.LICENSE_INFO.NUMBER' | translate">
+            </ion-input>
+          </ion-item>
+
+          <!-- License Image Preview -->
+          <div class="license-image-section">
+            <div class="license-image-container" (click)="selectDriverLicenseImage()">
+              <ng-container *ngIf="!isUploading; else licenseUploadingTemplate">
+                <img [src]="form.get('driverLicenseImage')?.value" *ngIf="form.get('driverLicenseImage')?.value" alt="License photo">
+                <div class="placeholder" *ngIf="!form.get('driverLicenseImage')?.value">
+                  <ion-icon name="id-card"></ion-icon>
+                  <p>{{ 'DETAILS.LICENSE_INFO.TAP_TO_UPLOAD' | translate }}</p>
+                </div>
+              </ng-container>
+              <ng-template #licenseUploadingTemplate>
+                <div class="upload-loader">
+                  <ion-spinner name="circular"></ion-spinner>
+                  <p>{{ 'DETAILS.UPLOAD_STATUS.UPLOADING' | translate }}</p>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+        </ion-item-group>
+      </ion-list>
+    </div>
+
+    <div class="submit-section">
+      <ion-button expand="block" (click)="updateProfile()" 
+                [disabled]="!form.valid || isSubmitting"
+                class="submit-button">
+        <ion-icon name="save" slot="start"></ion-icon>
+        {{ 'DETAILS.BUTTONS.SUBMIT' | translate }}
+        <ion-spinner name="crescent" *ngIf="isSubmitting"></ion-spinner>
+      </ion-button>
+    </div>
+  </form>
+</ion-content>
