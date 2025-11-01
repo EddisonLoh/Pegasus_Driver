@@ -1,0 +1,184 @@
+{
+  "LOGIN": {
+    "TITLE": "بانا درايفر",
+    "SUBTITLE": "قُد واكسب بثقة ونزاهة",
+    "MOBILE_PLACEHOLDER": "رقم الجوال",
+    "CONTINUE": "متابعة",
+    "SELECT_COUNTRY": "اختر الدولة",
+    "VALIDATION": {
+      "REQUIRED": "الرجاء إدخال رقم الجوال",
+      "INVALID": "الرجاء إدخال رقم جوال صحيح"
+    },
+    "EXIT": {
+      "HEADER": "الخروج من التطبيق",
+      "MESSAGE": "هل أنت متأكد أنك تريد الخروج من التطبيق؟",
+      "CANCEL": "إلغاء",
+      "CONFIRM": "خروج"
+    }
+  },
+  "TABS": {
+    "HOME": "الرئيسية",
+    "TRIPS": "رحلاتي",
+    "WALLET": "المحفظة",
+    "PROFILE": "الملف الشخصي"
+  },
+  "DETAILS": {
+    "TITLE": "أكمل ملفك الشخصي",
+    "PERSONAL_INFO": {
+      "FIRST_NAME": "الاسم الأول",
+      "LAST_NAME": "اسم العائلة",
+      "EMAIL": "البريد الإلكتروني"
+    },
+    "VEHICLE_INFO": {
+      "PLATE_NUMBER": "رقم اللوحة",
+      "CAR_TYPE": "نوع السيارة",
+      "CAR_NAME": "اسم السيارة",
+      "MILEAGE": "المسافة المقطوعة"
+    },
+    "LICENSE_INFO": {
+      "NUMBER": "رقم رخصة القيادة",
+      "UPLOAD": "تحميل صورة الرخصة",
+      "UPLOAD_PHOTO": "تحميل صورة الملف الشخصي"
+    },
+    "BUTTONS": {
+      "SUBMIT": "إرسال",
+      "CAMERA": "الكاميرا",
+      "GALLERY": "المعرض",
+      "FILE": "ملف",
+      "CANCEL": "إلغاء"
+    },
+    "ALERTS": {
+      "UPLOAD_SUCCESS": "تم التحميل بنجاح",
+      "UPLOAD_FAILED": "فشل التحميل",
+      "EXIT": {
+        "HEADER": "الخروج من التطبيق",
+        "MESSAGE": "هل أنت متأكد أنك تريد الخروج من التطبيق؟",
+        "CANCEL": "إلغاء",
+        "CONFIRM": "خروج"
+      },
+      "EMAIL_VERIFICATION": "مطلوب التحقق من البريد الإلكتروني",
+      "EMAIL_VERIFICATION_MESSAGE": "تم إرسال رسالة تحقق إلى عنوان بريدك الإلكتروني الجديد. يرجى التحقق من بريدك الإلكتروني قبل المتابعة."
+    },
+    "UPLOAD_STATUS": {
+      "UPLOADING": "جاري التحميل..."
+    }
+  },
+  "HOME": {
+    "EARNINGS": "$",
+    "TIME_LEFT": "الوقت المتبقي",
+    "SECONDS": "ثانية",
+    "ACCEPT": "قبول",
+    "ARRIVAL_IN": "الوصول في",
+    "YOUR_RIDER_IS": "راكبك هو",
+    "DESTINATION": "الوجهة",
+    "PICK_UP": "التقاط",
+    "DROP_OFF": "إنزال",
+    "NAVIGATE": "تنقل",
+    "CANCEL_RIDE": {
+      "HEADER": "إلغاء الرحلة",
+      "CHANGED_MIND": "غيرت رأيي",
+      "TOOK_TOO_LONG": "استغرق السائق وقتاً طويلاً",
+      "FOUND_ANOTHER": "وجدت رحلة أخرى",
+      "OTHER": "أخرى"
+    }
+  },
+  "COMMON": {
+    "CANCEL": "إلغاء",
+    "OK": "موافق"
+  },
+  "PROFILE": {
+    "TITLE": "ملف السائق",
+    "SELECT_AVATAR": "اختر صورة",
+    "MORE_FEATURES": "سيتم إضافة المزيد من الميزات",
+    "LOGOUT": "تسجيل خروج",
+    "TOTAL_EARNINGS": "الأرباح الإجمالية",
+    "TOTAL_RIDES": "إجمالي الرحلات",
+    "VEHICLE_INFO": "معلومات المركبة",
+    "CAR_MODEL": "موديل السيارة",
+    "PLATE_NUMBER": "رقم اللوحة",
+    "CONTACT_INFO": "معلومات الاتصال",
+    "PHONE": "رقم الهاتف",
+    "EMAIL": "البريد الإلكتروني",
+    "LANGUAGE": "اللغة"
+  },
+  "ABOUT": {
+    "TITLE": "حول",
+    "HEADING": "نحن الأفضل",
+    "COPYRIGHT": "© 2022 بانا"
+  },
+  "SUPPORT": {
+    "TITLE": "الدعم",
+    "NO_DATA_HEADING": "نستجيب فوراً",
+    "NO_DATA_TEXT": "أخبرنا كيف يمكننا مساعدتك.",
+    "INPUT_PLACEHOLDER": "ابدأ الكتابة.."
+  },
+  "PAYMENT": {
+    "TITLE": "الدفع",
+    "ADD_CARD": "إضافة بطاقة جديدة",
+    "PROCEED": "متابعة",
+    "PAYMENT_METHODS": "طرق الدفع",
+    "TEST_CARD": "بطاقة اختبار"
+  },
+  "HISTORY": {
+    "TITLE": "السجل",
+    "TOTAL_TRIPS": "إجمالي الرحلات",
+    "AVG_RATING": "متوسط التقييم",
+    "TOTAL_EARNINGS": "الأرباح الإجمالية",
+    "TODAY": "اليوم",
+    "THIS_WEEK": "هذا الأسبوع",
+    "THIS_MONTH": "هذا الشهر",
+    "NO_DATA": "لا توجد بيانات",
+    "BOOK_RIDE": "احجز رحلة لرؤية السجل"
+  },
+  "NETWORK": {
+    "TITLE": "حالة الشبكة",
+    "ERROR": "خطأ في الشبكة",
+    "TRY_AGAIN": "حاول مرة أخرى"
+  },
+  "CHAT": {
+    "TITLE": "محادثة",
+    "NO_DATA_HEADING": "نستجيب فوراً",
+    "NO_DATA_TEXT": "أخبرنا كيف يمكننا مساعدتك.",
+    "START_TYPING": "ابدأ الكتابة.."
+  },
+  "OTP": {
+    "VERIFY": "التحقق من OTP",
+    "ENTER_CODE": "أدخل رمز التحقق",
+    "SECONDS_REMAINING": "ثوانٍ متبقية",
+    "RESEND": "إعادة إرسال OTP",
+    "CONTINUE": "متابعة",
+    "INCORRECT_OTP": "رمز OTP غير صحيح. يرجى المحاولة مرة أخرى."
+  },
+  "APP_NAME": "اسم التطبيق",
+  "APP_TAGLINE": "شعار التطبيق",
+  "MOBILE_NUMBER": "رقم الجوال",
+  "MOBILE_REQUIRED": "* الرجاء إدخال رقم الجوال",
+  "MOBILE_INVALID": "* الرجاء إدخال رقم جوال صحيح",
+  "CONTINUE": "متابعة",
+  "ALERTS": {
+    "RIDER_ACCOUNT": {
+      "HEADER": "تم اكتشاف حساب راكب",
+      "MESSAGE": "هذا القسم مخصص للسائقين فقط. يرجى استخدام رقم هاتف مختلف للتسجيل كسائق."
+    }
+  },
+  "WAITING": {
+    "TITLE": "الطلب قيد المراجعة",
+    "MESSAGE": "شكراً لتقديم طلبك. يقوم فريقنا بمراجعة تفاصيلك ومستنداتك.",
+    "STATUS": "في انتظار الموافقة"
+  },
+  "WALLET": {
+    "TITLE": "محفظتي",
+    "BALANCE": "الرصيد المتاح",
+    "VERIFIED": "موثق",
+    "ADD_MONEY": "إضافة رصيد",
+    "WITHDRAW": "سحب",
+    "RECENT_TRANSACTIONS": "المعاملات الأخيرة",
+    "ENTER_AMOUNT": "أدخل المبلغ",
+    "MONEY_ADDED": "تمت إضافة الرصيد",
+    "MONEY_ADDED_SUCCESS": "تمت إضافة الرصيد بنجاح",
+    "WITHDRAWAL": "سحب",
+    "WITHDRAWAL_SUCCESS": "تم السحب بنجاح",
+    "ERROR": "خطأ",
+    "INSUFFICIENT_BALANCE": "رصيد غير كافي"
+  }
+} 

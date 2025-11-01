@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "187797802273",
-    "project_id": "shamride-ffbe6",
-    "storage_bucket": "shamride-ffbe6.firebasestorage.app"
+    "project_number": "459110381543",
+    "project_id": "pegasus-2be94",
+    "storage_bucket": "pegasus-2be94.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:187797802273:android:1160624749b8bbfa564260",
+        "mobilesdk_app_id": "1:459110381543:android:1160624749b8bbfa564260",
         "android_client_info": {
-          "package_name": "com.shamride.app"
+          "package_name": "com.pegasus.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyABhKckCLjTuk9KhrrVp9iIh-RLCY3CV94"
+          "current_key": "AIzaSyCTYjoPhLcshZVuEdr-amopUuVMy8lyEmA"
         }
       ],
       "services": {

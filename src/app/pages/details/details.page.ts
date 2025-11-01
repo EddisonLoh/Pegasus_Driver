@@ -152,7 +152,12 @@ export class DetailsPage implements OnInit {
   }
 
   async changeImage(source: CameraSource) {
+    const loading = await this.loadingController.create({
+      message: 'Uploading image...'
+    });
+
     try {
+      console.log('Getting photo from camera/gallery...');
       const image = await Camera.getPhoto({
         quality: 90,
         allowEditing: false,
@@ -160,26 +165,40 @@ export class DetailsPage implements OnInit {
         source: source,
       });
 
+      console.log('Photo obtained, starting upload...');
+
       if (image) {
+        await loading.present();
         this.isUploading = true;
 
         if (!this.user?.uid) {
           throw new Error('Profile UID is missing');
         }
 
+        console.log('Calling avatar.uploadImage...');
         const result = await this.avatar.uploadImage(image, this.user.uid);
-        
+        console.log('Upload result:', result);
+
         if (!result) {
-          throw new Error('Upload failed');
+          throw new Error('Upload failed - no URL returned');
         }
-        
+
         this.imageUrl = result;
+        console.log('Image URL set:', this.imageUrl);
+
+        const successAlert = await this.alertController.create({
+          header: 'Success',
+          message: 'Image uploaded successfully!',
+          buttons: ['OK']
+        });
+        await successAlert.present();
       }
     } catch (error) {
-      const message = error.message?.includes('Photo URL is required') 
+      console.error('changeImage error:', error);
+      const message = error.message?.includes('Photo URL is required')
         ? 'The image is too big. Please try another image with a smaller size.'
-        : `Upload failed: ${error.message}`;
-        
+        : `Upload failed: ${error.message || 'Unknown error'}`;
+
       const alert = await this.alertController.create({
         header: await this.translate.get('DETAILS.ALERTS.UPLOAD_FAILED').toPromise(),
         message: message,
@@ -188,9 +207,10 @@ export class DetailsPage implements OnInit {
       await alert.present();
     } finally {
       this.isUploading = false;
+      await loading.dismiss();
     }
   }
-  
+
 
   async presentImageSourceActionSheet() {
     const actionSheet = await this.actionSheetController.create({
@@ -234,23 +254,42 @@ export class DetailsPage implements OnInit {
     input.onchange = async (event: any) => {
       const file = event.target.files[0];
       if (file) {
+        const loading = await this.loadingController.create({
+          message: 'Uploading image...'
+        });
+        await loading.present();
+
         const reader = new FileReader();
         reader.onload = async (e: any) => {
-          const image = {
-            base64String: e.target.result.split(',')[1]
-          };
+          try {
+            const image = {
+              base64String: e.target.result.split(',')[1]
+            };
 
-          const result = await this.avatar.uploadImage(image as Photo, this.user.uid);
+            console.log('Uploading file, size:', file.size);
+            const result = await this.avatar.uploadImage(image as Photo, this.user.uid);
 
-          if (!result) {
+            if (!result) {
+              const alert = await this.alertController.create({
+                header: 'Upload failed',
+                message: 'There was a problem uploading your avatar.',
+                buttons: ['OK'],
+              });
+              await alert.present();
+            } else {
+              this.imageUrl = result;
+              console.log('File uploaded successfully:', result);
+            }
+          } catch (error) {
+            console.error('File upload error:', error);
             const alert = await this.alertController.create({
               header: 'Upload failed',
-              message: 'There was a problem uploading your avatar.',
+              message: error.message || 'There was a problem uploading your avatar.',
               buttons: ['OK'],
             });
             await alert.present();
-          } else {
-            this.imageUrl = result; // Ensure imageUrl is updated
+          } finally {
+            await loading.dismiss();
           }
         };
         reader.readAsDataURL(file);
@@ -285,7 +324,7 @@ export class DetailsPage implements OnInit {
         }
 
         const verificationResult = await signInWithPhoneNumber(this.authy, phoneNumber, recaptchaVerifier);
-        
+
         const alert = await this.alertController.create({
           header: 'Verification',
           inputs: [
@@ -306,7 +345,7 @@ export class DetailsPage implements OnInit {
               handler: async (data) => {
                 try {
                   const phoneCredential = PhoneAuthProvider.credential(
-                    verificationResult.verificationId, 
+                    verificationResult.verificationId,
                     data.verificationCode
                   );
                   await reauthenticateWithCredential(user, phoneCredential);
@@ -325,7 +364,7 @@ export class DetailsPage implements OnInit {
       }
     });
   }
-  
+
 
   async updateProfile() {
     if (this.form.invalid || this.isSubmitting) {
@@ -371,25 +410,25 @@ export class DetailsPage implements OnInit {
 
       await Geolocation.checkPermissions();
       const coordinates = await Geolocation.getCurrentPosition();
-      
+
       // Use stored user reference
       await this.avatar.createNewDriver(
-        coordinates, 
-        this.form.value.fullname + ' ' + this.form.value.lastname, 
-        this.form.value.email, 
-        currentUser.phoneNumber, 
-        carInfo.carName, 
-        carInfo.carType, 
-        carInfo.plateNumber, 
-        this.imageUrl, 
-        driverInfo.driverLicenseImage, 
-        driverInfo.driverLicense, 
+        coordinates,
+        this.form.value.fullname + ' ' + this.form.value.lastname,
+        this.form.value.email,
+        currentUser.phoneNumber,
+        carInfo.carName,
+        carInfo.carType,
+        carInfo.plateNumber,
+        this.imageUrl,
+        driverInfo.driverLicenseImage,
+        driverInfo.driverLicense,
         carInfo.mileage
       );
-      
+
       await this.avatar.createCard('Cash', '0', 'cash', 'None');
       this.approve2 = false;
-      
+
       // Navigate after successful update
       await this.router.navigateByUrl('tabs', { replaceUrl: true });
 
@@ -438,7 +477,7 @@ export class DetailsPage implements OnInit {
   }
 
 
-   
+
   initializeBackButtonCustomHandler() {
     this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(10, () => {
       this.handleBackButton();
@@ -447,7 +486,7 @@ export class DetailsPage implements OnInit {
 
   async handleBackButton() {
     try {
-        await this.showExitConfirmation();
+      await this.showExitConfirmation();
     } catch (error) {
       console.error('Error handling back button:', error);
     }

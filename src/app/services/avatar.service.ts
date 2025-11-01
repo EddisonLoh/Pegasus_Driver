@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Auth, onAuthStateChanged, User } from '@angular/fire/auth';
 import { collection, collectionData, CollectionReference, doc, docData, DocumentData, Firestore, setDoc, updateDoc, deleteDoc, serverTimestamp, addDoc, getDoc, onSnapshot, query, orderBy, limit, writeBatch, getDocs, where } from '@angular/fire/firestore';
-import { getDownloadURL, ref, Storage, uploadString } from '@angular/fire/storage';
+import { getDownloadURL, ref, Storage, uploadString, uploadBytes } from '@angular/fire/storage';
 import { Photo } from '@capacitor/camera';
 import { geohashForLocation } from 'geofire-common';
 import { Observable, Subscription } from 'rxjs';
@@ -340,28 +340,98 @@ export class AvatarService {
   }
 
   async uploadImage(cameraFile: Photo, uid: string): Promise<string | null> {
-    const storageRef = ref(this.storage, `avatars/${uid}`);
     try {
-      // Upload the image as a base64 string
-      await uploadString(storageRef, cameraFile.base64String, 'base64');
+      console.log('Starting image upload for uid:', uid);
+      
+      if (!cameraFile.base64String) {
+        console.error('No base64 string in camera file');
+        throw new Error('No image data provided');
+      }
+
+      console.log('Base64 string length:', cameraFile.base64String.length);
+
+      // Use a unique filename with timestamp to avoid caching issues
+      const timestamp = new Date().getTime();
+      const fileName = `avatars/${uid}_${timestamp}.jpg`;
+      console.log('Uploading to:', fileName);
+      
+      const storageRef = ref(this.storage, fileName);
+      
+      // Convert base64 to blob for better compatibility on Android
+      const base64Data = cameraFile.base64String;
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/jpeg' });
+      
+      console.log('Blob created, size:', blob.size);
+      
+      // Upload using uploadBytes for better Android compatibility
+      console.log('Starting upload...');
+      
+      const uploadResult = await uploadBytes(storageRef, blob, {
+        contentType: 'image/jpeg',
+        customMetadata: {
+          uploadedBy: uid,
+          uploadedAt: timestamp.toString()
+        }
+      });
+      
+      console.log('Upload complete, uploadResult:', uploadResult);
+      console.log('Upload result metadata:', uploadResult.metadata);
+      
       // Get the download URL for the uploaded image
-      const imageUrl = await getDownloadURL(storageRef);
-      // Reference to the user's document in Firestore
-      const userDocRef = doc(this.firestore, `Riders/${uid}`);
+      // Add retry logic for getDownloadURL on Android
+      let imageUrl: string;
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          imageUrl = await getDownloadURL(uploadResult.ref);
+          console.log('Download URL obtained:', imageUrl);
+          if (imageUrl && imageUrl.length > 0) {
+            break;
+          }
+        } catch (urlError) {
+          console.error(`Error getting download URL (attempt ${4 - retries}):`, urlError);
+          retries--;
+          if (retries === 0) {
+            throw new Error('Failed to get download URL after multiple attempts');
+          }
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      if (!imageUrl || imageUrl.length === 0) {
+        throw new Error('Download URL is empty');
+      }
+      
+      // Reference to the user's document in Firestore (using Drivers collection)
+      const userDocRef = doc(this.firestore, `Drivers/${uid}`);
   
       // Check if the document exists
       const docSnapshot = await getDoc(userDocRef);
       if (docSnapshot.exists()) {
         // If the document exists, update the photoURL field
-        await updateDoc(userDocRef, { photoURL: imageUrl });
+        await updateDoc(userDocRef, { Driver_imgUrl: imageUrl });
+        console.log('Updated existing driver document');
       } else {
         // If the document does not exist, create it with the photoURL field
-        await setDoc(userDocRef, { photoURL: imageUrl }, { merge: true });
+        await setDoc(userDocRef, { Driver_imgUrl: imageUrl }, { merge: true });
+        console.log('Created new driver document');
       }
+      
+      console.log('Image upload complete! Final URL:', imageUrl);
       return imageUrl;
     } catch (e) {
       console.error('Error uploading image:', e);
-      return null;
+      console.error('Error code:', e.code);
+      console.error('Error message:', e.message);
+      console.error('Error stack:', e.stack);
+      throw e; // Throw the error instead of returning null for better error messages
     }
   }
 

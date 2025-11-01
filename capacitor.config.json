@@ -3,16 +3,12 @@
 	"appName": "myDriver",
 	"webDir": "www",
 	"bundledWebRuntime": false,
-  "server": {
-    "androidScheme": "https",
-    "hostname": "shamride-ffbe6.web.app"
-},
 	"plugins": {
 		  "Keyboard": {
 			"resize": "none"
 		},
     "CapacitorHttp": {
-      "enabled": false
+      "enabled": true
     },
 		  "android": {
             "allowMixedContent": true
