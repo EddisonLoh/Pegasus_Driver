@@ -3,6 +3,7 @@
     "origin": [
       "https://pegasus-2be94.web.app",
       "https://pegasus-2be94.firebaseapp.com",
+      "https://pegasus-driver.vercel.app",
       "http://localhost:8100",
       "http://localhost:49670",
       "capacitor://localhost",
