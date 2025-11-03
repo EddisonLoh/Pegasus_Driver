@@ -10,6 +10,9 @@
     "CapacitorHttp": {
       "enabled": true
     },
+    "server": {
+  "allowNavigation": "firebasestorage.googleapis.com"
+},
 		  "android": {
             "allowMixedContent": true
           },
