@@ -1161,16 +1161,23 @@ class AuthService {
 
 
   recaptcha() {
-    this.appVerifier = new _angular_fire_auth__WEBPACK_IMPORTED_MODULE_3__.RecaptchaVerifier('sign-in-button', {
-      size: 'invisible',
-      callback: response => {
-        console.log(response);
-      },
-      'expired-callback': () => {
-        console.log('Recaptcha expired');
+    try {
+      this.appVerifier = new _angular_fire_auth__WEBPACK_IMPORTED_MODULE_3__.RecaptchaVerifier('sign-in-button', {
+        size: 'invisible',
+        callback: response => {
+          console.log('reCAPTCHA solved:', response);
+        },
+        'expired-callback': () => {
+          console.log('reCAPTCHA expired');
+        }
+      }, this.auth); // Only render on web platform
+
+      if (typeof window !== 'undefined' && window.document && !window['Capacitor']) {
+        this.appVerifier.render();
       }
-    }, this.auth);
-    this.appVerifier.render();
+    } catch (error) {
+      console.error('Error initializing RecaptchaVerifier:', error);
+    }
   }
 
   signInWithPhoneNumber(phoneNumber) {
@@ -1178,11 +1185,18 @@ class AuthService {
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        if (!_this.appVerifier) _this.recaptcha();
+        console.log('Attempting phone auth for:', phoneNumber);
+        console.log('Platform check - Capacitor:', !!window['Capacitor']); // Always ensure we have a verifier
+
+        if (!_this.appVerifier) {
+          _this.recaptcha();
+        }
+
         const confirmationResult = yield (0,_angular_fire_auth__WEBPACK_IMPORTED_MODULE_2__.signInWithPhoneNumber)(_this.auth, phoneNumber, _this.appVerifier);
         _this.confirmationResult = confirmationResult;
         return confirmationResult;
       } catch (e) {
+        console.error('Phone auth error:', e);
         throw e;
       }
     })();
@@ -1290,8 +1304,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _angular_fire_storage__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @angular/fire/storage */ 2111);
 /* harmony import */ var geofire_common__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! geofire-common */ 3942);
 /* harmony import */ var geofire_common__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(geofire_common__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! rxjs */ 2378);
 /* harmony import */ var uuid__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! uuid */ 2535);
-/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @angular/core */ 2560);
+/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @angular/core */ 2560);
 /* harmony import */ var _auth_service__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./auth.service */ 7556);
 
 
@@ -1312,14 +1327,30 @@ class AvatarService {
     this.auth = auth;
     this.firestore = firestore;
     this.storage = storage;
-    this.authService = authService;
+    this.authService = authService; // Add connectivity check
+
+    this.checkFirebaseConnectivity();
     this.authStateSubscription = (0,_angular_fire_auth__WEBPACK_IMPORTED_MODULE_3__.onAuthStateChanged)(this.auth, /*#__PURE__*/function () {
       var _ref = (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* (user) {
         if (user) {
           _this.user = user;
-          yield _this.loadUserProfile();
+          console.log('User authenticated, loading profile...');
+
+          try {
+            yield _this.loadUserProfile();
+          } catch (error) {
+            console.error('Error loading user profile:', error); // Retry after a delay
+
+            setTimeout( /*#__PURE__*/(0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+              try {
+                yield _this.loadUserProfile();
+              } catch (retryError) {
+                console.error('Retry failed for loading user profile:', retryError);
+              }
+            }), 3000);
+          }
         } else {
-          console.log("Hey");
+          console.log("User not authenticated");
           _this.userName = "None";
         }
       });
@@ -1330,34 +1361,110 @@ class AvatarService {
     }());
   }
 
-  loadUserProfile() {
+  checkFirebaseConnectivity() {
     var _this2 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        const profileDoc = yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.getDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this2.firestore, 'Drivers', _this2.user.uid));
+        console.log('Checking Firebase connectivity...');
+        console.log('Firebase config:', {
+          projectId: _this2.firestore.app.options.projectId,
+          authDomain: _this2.firestore.app.options.authDomain,
+          apiKey: _this2.firestore.app.options.apiKey?.substring(0, 10) + '...'
+        }); // Try to read from a simple collection to test connectivity
+
+        const testRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this2.firestore, 'connectivity-test');
+        const testQuery = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.query)(testRef, (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.limit)(1));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Connectivity test timeout')), 10000));
+        yield Promise.race([(0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.getDocs)(testQuery), timeoutPromise]);
+        console.log('Firebase connectivity: OK');
+      } catch (error) {
+        console.error('Firebase connectivity issue:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message); // Log additional diagnostic information
+
+        console.log('Network state:', navigator.onLine ? 'Online' : 'Offline');
+        console.log('User agent:', navigator.userAgent);
+        console.log('Platform:', window['Capacitor'] ? 'Native' : 'Web');
+      }
+    })();
+  } // Public method to test connectivity
+
+
+  testConnectivity() {
+    var _this3 = this;
+
+    return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+      try {
+        yield _this3.checkFirebaseConnectivity();
+        return true;
+      } catch (error) {
+        console.error('Connectivity test failed:', error);
+        return false;
+      }
+    })();
+  }
+
+  loadUserProfile() {
+    var _this4 = this;
+
+    return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+      try {
+        console.log('Loading user profile for UID:', _this4.user.uid); // Add timeout to prevent hanging
+
+        const profilePromise = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.getDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this4.firestore, 'Drivers', _this4.user.uid));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile load timeout')), 15000));
+        const profileDoc = yield Promise.race([profilePromise, timeoutPromise]);
 
         if (profileDoc.exists()) {
-          _this2.profile = profileDoc.data();
+          _this4.profile = profileDoc.data();
+          console.log('User profile loaded successfully');
         } else {
-          // Create a default profile if none exists
+          console.log('No existing profile found, creating default profile'); // Create a default profile if none exists
+
           const defaultProfile = {
-            Driver_id: _this2.user.uid,
-            Driver_name: 'New Driver',
-            Driver_email: _this2.user.email || '',
-            Driver_phone: _this2.user.phoneNumber || '',
-            Driver_imgUrl: '',
+            Driver_id: _this4.user.uid,
+            Driver_name: _this4.user.displayName || 'New Driver',
+            Driver_email: _this4.user.email || '',
+            Driver_phone: _this4.user.phoneNumber || '',
+            Driver_imgUrl: 'assets/imgs/about.svg',
             Driver_rating: 0,
             Driver_num_rides: 0,
             onlineState: false,
-            Earnings: 0
-          }; // Set the default profile in Firestore
+            Earnings: 0,
+            isApproved: false,
+            submissionDate: (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.serverTimestamp)()
+          };
 
-          yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this2.firestore, 'Drivers', _this2.user.uid), defaultProfile);
-          _this2.profile = defaultProfile;
+          try {
+            // Set the default profile in Firestore with timeout
+            const setDocPromise = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this4.firestore, 'Drivers', _this4.user.uid), defaultProfile);
+            const setTimeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Profile creation timeout')), 15000));
+            yield Promise.race([setDocPromise, setTimeoutPromise]);
+            _this4.profile = defaultProfile;
+            console.log('Default profile created successfully');
+          } catch (setError) {
+            console.error('Error creating default profile:', setError); // Use the default profile locally even if Firestore write fails
+
+            _this4.profile = defaultProfile;
+          }
         }
       } catch (error) {
         console.error('Error loading user profile:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message); // Create a minimal local profile as fallback
+
+        _this4.profile = {
+          Driver_id: _this4.user.uid,
+          Driver_name: _this4.user.displayName || 'Driver',
+          Driver_email: _this4.user.email || '',
+          Driver_phone: _this4.user.phoneNumber || '',
+          Driver_imgUrl: 'assets/imgs/about.svg',
+          Driver_rating: 0,
+          Driver_num_rides: 0,
+          onlineState: false,
+          Earnings: 0
+        };
         throw error;
       }
     })();
@@ -1369,16 +1476,16 @@ class AvatarService {
   }
 
   rejectRider() {
-    var _this3 = this;
+    var _this5 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this3.firestore, "Request", _this3.auth.currentUser.uid);
+        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this5.firestore, "Request", _this5.auth.currentUser.uid);
         yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)(userDocRef, {
           cancel: true,
           start: false
         });
-        yield _this3.updateOnlineState(true);
+        yield _this5.updateOnlineState(true);
         return true;
       } catch (e) {
         console.error('Error rejecting rider:', e);
@@ -1388,11 +1495,11 @@ class AvatarService {
   }
 
   pickRider() {
-    var _this4 = this;
+    var _this6 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this4.firestore, "Request", _this4.auth.currentUser.uid);
+        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this6.firestore, "Request", _this6.auth.currentUser.uid);
         yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)(userDocRef, {
           start: true
         });
@@ -1405,11 +1512,11 @@ class AvatarService {
   }
 
   endRide() {
-    var _this5 = this;
+    var _this7 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this5.firestore, "Request", _this5.auth.currentUser.uid);
+        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this7.firestore, "Request", _this7.auth.currentUser.uid);
         yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)(userDocRef, {
           stop: true,
           start: false
@@ -1423,11 +1530,11 @@ class AvatarService {
   }
 
   saveCarInfo(uid, carInfo) {
-    var _this6 = this;
+    var _this8 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this6.firestore, `Drivers/${uid}/CarInfo`), carInfo);
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this8.firestore, `Drivers/${uid}/CarInfo`), carInfo);
       } catch (e) {
         console.error('Error saving car info:', e);
         throw new Error('Error saving car info');
@@ -1436,11 +1543,11 @@ class AvatarService {
   }
 
   saveDriverInfo(uid, driverInfo) {
-    var _this7 = this;
+    var _this9 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this7.firestore, `Drivers/${uid}/DriverInfo`), driverInfo);
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this9.firestore, `Drivers/${uid}/DriverInfo`), driverInfo);
       } catch (e) {
         console.error('Error saving driver info:', e);
         throw new Error('Error saving driver info');
@@ -1449,7 +1556,7 @@ class AvatarService {
   }
 
   createHistory(user) {
-    var _this8 = this;
+    var _this10 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
@@ -1459,11 +1566,11 @@ class AvatarService {
         const historyId = (0,uuid__WEBPACK_IMPORTED_MODULE_5__["default"])(); // Generate a random ID
         // Make sure to include the requestId in the history document
 
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this8.firestore, "Drivers", `${_this8.auth.currentUser.uid}/History/${historyId}`), { ...loc,
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this10.firestore, "Drivers", `${_this10.auth.currentUser.uid}/History/${historyId}`), { ...loc,
           requestId: user.requestId || loc.requestId // Include requestId
 
         });
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this8.firestore, `AllRides/${_this8.auth.currentUser.uid}/customer/${historyId}`), { ...loc
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this10.firestore, `AllRides/${_this10.auth.currentUser.uid}/customer/${historyId}`), { ...loc
         });
       } catch (e) {
         console.error('Error creating history:', e);
@@ -1473,13 +1580,13 @@ class AvatarService {
   }
 
   getOnlineState() {
-    var _this9 = this;
+    var _this11 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
-      const user = _this9.auth.currentUser;
+      const user = _this11.auth.currentUser;
 
       if (user) {
-        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this9.firestore, 'Drivers', user.uid);
+        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this11.firestore, 'Drivers', user.uid);
         const userDoc = yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.getDoc)(userDocRef);
 
         if (userDoc.exists()) {
@@ -1495,11 +1602,11 @@ class AvatarService {
   }
 
   goOffline() {
-    var _this10 = this;
+    var _this12 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.deleteDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this10.firestore, "Drivers", _this10.auth.currentUser.uid));
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.deleteDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this12.firestore, "Drivers", _this12.auth.currentUser.uid));
       } catch (e) {
         console.error('Error going offline:', e);
         throw new Error('Error going offline');
@@ -1508,11 +1615,11 @@ class AvatarService {
   }
 
   deleteDriverFromRequest(ID) {
-    var _this11 = this;
+    var _this13 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.deleteDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this11.firestore, "Request", ID));
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.deleteDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this13.firestore, "Request", ID));
       } catch (e) {
         console.error('Error deleting driver from request:', e);
         throw new Error('Error deleting driver from request');
@@ -1521,11 +1628,11 @@ class AvatarService {
   }
 
   updateCountDown(time) {
-    var _this12 = this;
+    var _this14 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this12.firestore, "Request", _this12.auth.currentUser.uid);
+        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this14.firestore, "Request", _this14.auth.currentUser.uid);
         yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)(userDocRef, {
           countDown: time
         });
@@ -1548,35 +1655,35 @@ class AvatarService {
   }
 
   addChatEnRouteMessage(msg, iD) {
-    var _this13 = this;
+    var _this15 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
-      return yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.addDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this13.firestore, `Request/${iD}/messages`), {
+      return yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.addDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this15.firestore, `Request/${iD}/messages`), {
         msg: msg,
-        from: _this13.auth.currentUser.uid,
+        from: _this15.auth.currentUser.uid,
         createdAt: (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.serverTimestamp)(),
         myMsg: true,
-        fromName: _this13.profile.Rider_name
+        fromName: _this15.profile.Rider_name
       });
     })();
   }
 
   updatChatMessageInfo(id) {
-    var _this14 = this;
+    var _this16 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
-      return yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this14.firestore, `Request/${id}/`), {
-        name: _this14.profile.Rider_name,
-        id: _this14.profile.Rider_id,
-        phone: _this14.profile.Rider_phone,
-        email: _this14.profile.Rider_email,
+      return yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this16.firestore, `Request/${id}/`), {
+        name: _this16.profile.Rider_name,
+        id: _this16.profile.Rider_id,
+        phone: _this16.profile.Rider_phone,
+        email: _this16.profile.Rider_email,
         new: true
       });
     })();
   }
 
   pushDriverToRequest(coord, name, email, phone, car, cartype, plate, imageUrl, document, ID) {
-    var _this15 = this;
+    var _this17 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
@@ -1584,7 +1691,7 @@ class AvatarService {
           geohash: (0,geofire_common__WEBPACK_IMPORTED_MODULE_1__.geohashForLocation)([coord.coords.latitude, coord.coords.longitude]),
           Driver_lat: coord.coords.latitude,
           Driver_lng: coord.coords.longitude,
-          Driver_id: _this15.auth.currentUser.uid,
+          Driver_id: _this17.auth.currentUser.uid,
           Driver_name: name,
           Driver_car: car,
           Driver_imgUrl: imageUrl,
@@ -1609,7 +1716,7 @@ class AvatarService {
           isApproved: false,
           submissionDate: undefined
         };
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this15.firestore, "Request", ID), { ...loc
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this17.firestore, "Request", ID), { ...loc
         });
       } catch (e) {
         console.error('Error pushing driver to request:', e);
@@ -1619,7 +1726,7 @@ class AvatarService {
   }
 
   createNewDriver(coord, name, email, phone, car, cartype, plate, imageUrl, document, license, mileage) {
-    var _this16 = this;
+    var _this18 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
@@ -1627,7 +1734,7 @@ class AvatarService {
           geohash: (0,geofire_common__WEBPACK_IMPORTED_MODULE_1__.geohashForLocation)([coord.coords.latitude, coord.coords.longitude]),
           Driver_lat: coord.coords.latitude,
           Driver_lng: coord.coords.longitude,
-          Driver_id: _this16.auth.currentUser.uid,
+          Driver_id: _this18.auth.currentUser.uid,
           Driver_name: name,
           Driver_car: car,
           Driver_imgUrl: imageUrl,
@@ -1652,7 +1759,7 @@ class AvatarService {
           isApproved: false,
           submissionDate: (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.serverTimestamp)()
         };
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this16.firestore, "Drivers", _this16.auth.currentUser.uid), { ...loc
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this18.firestore, "Drivers", _this18.auth.currentUser.uid), { ...loc
         });
       } catch (e) {
         console.error('Error creating new driver:', e);
@@ -1668,10 +1775,10 @@ class AvatarService {
   }
 
   getUserType(uid) {
-    var _this17 = this;
+    var _this19 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
-      const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this17.firestore, `Riders/${uid}`);
+      const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this19.firestore, `Riders/${uid}`);
       const userDoc = yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.getDoc)(userDocRef);
 
       if (userDoc.exists()) {
@@ -1689,110 +1796,89 @@ class AvatarService {
   }
 
   uploadImage(cameraFile, uid) {
-    var _this18 = this;
+    var _this20 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+      const storageRef = (0,_angular_fire_storage__WEBPACK_IMPORTED_MODULE_6__.ref)(_this20.storage, _this20.pathM);
+
       try {
-        console.log('Starting image upload for uid:', uid);
-
-        if (!cameraFile.base64String) {
-          console.error('No base64 string in camera file');
-          throw new Error('No image data provided');
-        }
-
-        console.log('Base64 string length:', cameraFile.base64String.length); // Use a unique filename with timestamp to avoid caching issues
-
-        const timestamp = new Date().getTime();
-        const fileName = `avatars/${uid}_${timestamp}.jpg`;
-        console.log('Uploading to:', fileName);
-        const storageRef = (0,_angular_fire_storage__WEBPACK_IMPORTED_MODULE_6__.ref)(_this18.storage, fileName); // Convert base64 to blob for better compatibility on Android
-
-        const base64Data = cameraFile.base64String;
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], {
-          type: 'image/jpeg'
+        yield (0,_angular_fire_storage__WEBPACK_IMPORTED_MODULE_6__.uploadString)(storageRef, cameraFile.base64String, 'base64');
+        const imageUrl = yield (0,_angular_fire_storage__WEBPACK_IMPORTED_MODULE_6__.getDownloadURL)(storageRef);
+        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this20.firestore, `Drivers/${uid}`);
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)(userDocRef, {
+          imageUrl
         });
-        console.log('Blob created, size:', blob.size); // Upload using uploadBytes for better Android compatibility
-
-        console.log('Starting upload...');
-        const uploadResult = yield (0,_angular_fire_storage__WEBPACK_IMPORTED_MODULE_6__.uploadBytes)(storageRef, blob, {
-          contentType: 'image/jpeg',
-          customMetadata: {
-            uploadedBy: uid,
-            uploadedAt: timestamp.toString()
-          }
-        });
-        console.log('Upload complete, uploadResult:', uploadResult);
-        console.log('Upload result metadata:', uploadResult.metadata); // Get the download URL for the uploaded image
-        // Add retry logic for getDownloadURL on Android
-
-        let imageUrl;
-        let retries = 3;
-
-        while (retries > 0) {
-          try {
-            imageUrl = yield (0,_angular_fire_storage__WEBPACK_IMPORTED_MODULE_6__.getDownloadURL)(uploadResult.ref);
-            console.log('Download URL obtained:', imageUrl);
-
-            if (imageUrl && imageUrl.length > 0) {
-              break;
-            }
-          } catch (urlError) {
-            console.error(`Error getting download URL (attempt ${4 - retries}):`, urlError);
-            retries--;
-
-            if (retries === 0) {
-              throw new Error('Failed to get download URL after multiple attempts');
-            } // Wait a bit before retrying
-
-
-            yield new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-
-        if (!imageUrl || imageUrl.length === 0) {
-          throw new Error('Download URL is empty');
-        } // Reference to the user's document in Firestore (using Drivers collection)
-
-
-        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this18.firestore, `Drivers/${uid}`); // Check if the document exists
-
-        const docSnapshot = yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.getDoc)(userDocRef);
-
-        if (docSnapshot.exists()) {
-          // If the document exists, update the photoURL field
-          yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)(userDocRef, {
-            Driver_imgUrl: imageUrl
-          });
-          console.log('Updated existing driver document');
-        } else {
-          // If the document does not exist, create it with the photoURL field
-          yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)(userDocRef, {
-            Driver_imgUrl: imageUrl
-          }, {
-            merge: true
-          });
-          console.log('Created new driver document');
-        }
-
-        console.log('Image upload complete! Final URL:', imageUrl);
-        return imageUrl;
+        return true;
       } catch (e) {
-        console.error('Error uploading image:', e);
-        console.error('Error code:', e.code);
-        console.error('Error message:', e.message);
-        console.error('Error stack:', e.stack);
-        throw e; // Throw the error instead of returning null for better error messages
+        console.log(e);
+        return null;
       }
     })();
-  }
+  } //  async uploadImage(cameraFile: Photo, uid: string): Promise<string> {
+  //     try {
+  //       console.log('Starting image upload for uid:', uid);
+  //       if (!cameraFile.base64String) {
+  //         console.error('No base64 string in camera file');
+  //         throw new Error('No image data provided');
+  //       }
+  //       console.log('Base64 string length:', cameraFile.base64String.length);
+  //       const timestamp = Date.now();
+  //       const fileName = `avatars/${uid}_${timestamp}.jpg`;
+  //       console.log('Uploading to:', fileName);
+  //       const storageRef = ref(this.storage, fileName);
+  //       // ---------- BLOB CONVERSION (unchanged) ----------
+  //       const byteCharacters = atob(cameraFile.base64String);
+  //       const byteNumbers = new Array(byteCharacters.length);
+  //       for (let i = 0; i < byteCharacters.length; i++) {
+  //         byteNumbers[i] = byteCharacters.charCodeAt(i);
+  //       }
+  //       const byteArray = new Uint8Array(byteNumbers);
+  //       const blob = new Blob([byteArray], { type: 'image/jpeg' });
+  //       console.log('Blob created, size:', blob.size);
+  //       // ---------- UPLOAD (modular SDK) ----------
+  //       console.log('Starting upload...');
+  //       const uploadResult = await uploadBytes(storageRef, blob, {
+  //         contentType: 'image/jpeg',
+  //         customMetadata: {
+  //           uploadedBy: uid,
+  //           uploadedAt: timestamp.toString(),
+  //         },
+  //       });
+  //       console.log('Upload complete, uploadResult:', uploadResult);
+  //       // ---------- GET DOWNLOAD URL (with retry) ----------
+  //       let imageUrl = '';
+  //       let retries = 3;
+  //       while (retries > 0) {
+  //         try {
+  //           imageUrl = await getDownloadURL(uploadResult.ref);
+  //           if (imageUrl) break;
+  //         } catch (urlError) {
+  //           console.error(`DownloadURL attempt ${4 - retries} failed:`, urlError);
+  //           retries--;
+  //           if (retries === 0) throw new Error('Failed to get download URL');
+  //           await new Promise(r => setTimeout(r, 1000));
+  //         }
+  //       }
+  //       // ---------- FIRESTORE UPDATE (unchanged) ----------
+  //       const userDocRef = doc(this.firestore, `Drivers/${uid}`);
+  //       const snap = await getDoc(userDocRef);
+  //       if (snap.exists()) {
+  //         await updateDoc(userDocRef, { Driver_imgUrl: imageUrl });
+  //         console.log('Updated existing driver document');
+  //       } else {
+  //         await setDoc(userDocRef, { Driver_imgUrl: imageUrl }, { merge: true });
+  //         console.log('Created new driver document');
+  //       }
+  //       console.log('Image upload complete! Final URL:', imageUrl);
+  //       return imageUrl;
+  //     } catch (e: any) {
+  //       console.error('Error uploading image:', e);
+  //       console.error('Code:', e.code);
+  //       console.error('Message:', e.message);
+  //       throw e;          // keep throwing – caller shows the alert
+  //     }
+  //   }
+
 
   getCards() {
     const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(this.firestore, `Drivers/${this.auth.currentUser.uid}/Cards`);
@@ -1805,9 +1891,129 @@ class AvatarService {
   }
 
   getCartypes() {
+    console.log('Fetching cartypes from Firestore...');
     const cartypesRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(this.firestore, `Cartypes`);
-    return (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collectionData)(cartypesRef);
-  }
+    return new rxjs__WEBPACK_IMPORTED_MODULE_7__.Observable(observer => {
+      // Set a timeout for the Firestore request
+      const timeoutId = setTimeout(() => {
+        console.log('Cartypes fetch timed out, using mock data');
+        const mockCartypes = [{
+          id: 'sedan',
+          name: 'Sedan'
+        }, {
+          id: 'suv',
+          name: 'SUV'
+        }, {
+          id: 'hatchback',
+          name: 'Hatchback'
+        }, {
+          id: 'pickup',
+          name: 'Pickup Truck'
+        }, {
+          id: 'van',
+          name: 'Van'
+        }, {
+          id: 'coupe',
+          name: 'Coupe'
+        }];
+        observer.next(mockCartypes);
+        observer.complete();
+      }, 10000); // 10 second timeout
+
+      (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collectionData)(cartypesRef).subscribe({
+        next: data => {
+          clearTimeout(timeoutId);
+          console.log('Cartypes received from Firestore:', data); // If no data is returned from Firestore, use mock data
+
+          if (!data || data.length === 0) {
+            console.log('No cartypes found in Firestore, using mock data');
+            const mockCartypes = [{
+              id: 'sedan',
+              name: 'Sedan'
+            }, {
+              id: 'suv',
+              name: 'SUV'
+            }, {
+              id: 'hatchback',
+              name: 'Hatchback'
+            }, {
+              id: 'pickup',
+              name: 'Pickup Truck'
+            }, {
+              id: 'van',
+              name: 'Van'
+            }, {
+              id: 'coupe',
+              name: 'Coupe'
+            }];
+            observer.next(mockCartypes);
+          } else {
+            observer.next(data);
+          }
+        },
+        error: error => {
+          clearTimeout(timeoutId);
+          console.error('Error fetching cartypes from Firestore:', error);
+          console.error('Error code:', error.code);
+          console.error('Error message:', error.message); // Provide mock data on error
+
+          const mockCartypes = [{
+            id: 'sedan',
+            name: 'Sedan'
+          }, {
+            id: 'suv',
+            name: 'SUV'
+          }, {
+            id: 'hatchback',
+            name: 'Hatchback'
+          }, {
+            id: 'pickup',
+            name: 'Pickup Truck'
+          }, {
+            id: 'van',
+            name: 'Van'
+          }, {
+            id: 'coupe',
+            name: 'Coupe'
+          }];
+          observer.next(mockCartypes);
+        },
+        complete: () => {
+          clearTimeout(timeoutId);
+          observer.complete();
+        }
+      });
+    });
+  } // getCartypes(): Observable<DocumentData[]> {
+  //   try {
+  //     console.log('Fetching cartypes from Firestore...');
+  //     const cartypesRef = collection(this.firestore, `Cartypes`);
+  //     const cartypesObservable = collectionData(cartypesRef);
+  //     // Add error handling to the observable
+  //     return new Observable(observer => {
+  //       cartypesObservable.subscribe({
+  //         next: (data) => {
+  //           console.log('Cartypes fetched successfully:', data);
+  //           observer.next(data);
+  //         },
+  //         error: (error) => {
+  //           console.error('Error fetching cartypes:', error);
+  //           console.error('Error code:', error.code);
+  //           console.error('Error message:', error.message);
+  //           observer.error(error);
+  //         },
+  //         complete: () => {
+  //           console.log('Cartypes fetch completed');
+  //           observer.complete();
+  //         }
+  //       });
+  //     });
+  //   } catch (error) {
+  //     console.error('Error in getCartypes method:', error);
+  //     throw error;
+  //   }
+  // }
+
 
   getRequests() {
     const requestsRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(this.firestore, `Request/${this.auth.currentUser.uid}`);
@@ -1820,16 +2026,16 @@ class AvatarService {
   }
 
   addChatMessage(msg) {
-    var _this19 = this;
+    var _this21 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.addDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this19.firestore, `Messages/${_this19.profile.Driver_id}/messages`), {
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.addDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this21.firestore, `Messages/${_this21.profile.Driver_id}/messages`), {
           msg,
-          from: _this19.auth.currentUser.uid,
+          from: _this21.auth.currentUser.uid,
           createdAt: (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.serverTimestamp)(),
           myMsg: true,
-          fromName: _this19.profile.Driver_name
+          fromName: _this21.profile.Driver_name
         });
       } catch (e) {
         console.error('Error adding chat message:', e);
@@ -1839,7 +2045,7 @@ class AvatarService {
   }
 
   createCard(name, number, type, id) {
-    var _this20 = this;
+    var _this22 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
@@ -1850,7 +2056,7 @@ class AvatarService {
           id,
           selected: true
         };
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this20.firestore, `Drivers/${_this20.auth.currentUser.uid}/Cards/${name}`), { ...card
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this22.firestore, `Drivers/${_this22.auth.currentUser.uid}/Cards/${name}`), { ...card
         });
         return true;
       } catch (e) {
@@ -1861,7 +2067,7 @@ class AvatarService {
   }
 
   updateCard(name, number, type, id, state) {
-    var _this21 = this;
+    var _this23 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
@@ -1872,7 +2078,7 @@ class AvatarService {
           id,
           selected: state
         };
-        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this21.firestore, `Drivers/${_this21.profile.Rider_id}/Cards/${name}`), { ...card
+        yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this23.firestore, `Drivers/${_this23.profile.Rider_id}/Cards/${name}`), { ...card
         });
         return true;
       } catch (e) {
@@ -1883,13 +2089,13 @@ class AvatarService {
   }
 
   updateOnlineState(state) {
-    var _this22 = this;
+    var _this24 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
-      const user = _this22.auth.currentUser;
+      const user = _this24.auth.currentUser;
 
       if (user) {
-        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this22.firestore, 'Drivers', user.uid);
+        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this24.firestore, 'Drivers', user.uid);
         yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.setDoc)(userDocRef, {
           onlineState: state
         }, {
@@ -1921,11 +2127,11 @@ class AvatarService {
   }
 
   updateDriverLocation(coord) {
-    var _this23 = this;
+    var _this25 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this23.firestore, `Drivers/${_this23.auth.currentUser.uid}`);
+        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this25.firestore, `Drivers/${_this25.auth.currentUser.uid}`);
         yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)(userDocRef, {
           geohash: (0,geofire_common__WEBPACK_IMPORTED_MODULE_1__.geohashForLocation)([coord.lat, coord.lng]),
           Driver_lat: coord.lat,
@@ -1940,11 +2146,11 @@ class AvatarService {
   }
 
   updateEarnings(value) {
-    var _this24 = this;
+    var _this26 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this24.firestore, `Drivers/${_this24.auth.currentUser.uid}`);
+        const userDocRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this26.firestore, `Drivers/${_this26.auth.currentUser.uid}`);
         yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.updateDoc)(userDocRef, {
           Earnings: value
         });
@@ -1963,10 +2169,10 @@ class AvatarService {
   }
 
   initializeWallet(driverId) {
-    var _this25 = this;
+    var _this27 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
-      const walletRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this25.firestore, `Drivers/${driverId}/wallet/main`);
+      const walletRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this27.firestore, `Drivers/${driverId}/wallet/main`);
       const defaultWallet = {
         balance: 0,
         currency: 'USD',
@@ -1988,13 +2194,13 @@ class AvatarService {
   }
 
   addTransaction(transaction) {
-    var _this26 = this;
+    var _this28 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
-      const batch = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.writeBatch)(_this26.firestore);
-      const driverId = _this26.auth.currentUser.uid; // Get current wallet
+      const batch = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.writeBatch)(_this28.firestore);
+      const driverId = _this28.auth.currentUser.uid; // Get current wallet
 
-      const walletRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this26.firestore, `Drivers/${driverId}/wallet/main`);
+      const walletRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)(_this28.firestore, `Drivers/${driverId}/wallet/main`);
       const walletSnap = yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.getDoc)(walletRef);
       const currentWallet = walletSnap.data(); // Calculate new balance
 
@@ -2006,7 +2212,7 @@ class AvatarService {
         lastUpdated: (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.serverTimestamp)()
       }); // Add transaction
 
-      const transactionRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this26.firestore, `Drivers/${driverId}/wallet/main/transactions`));
+      const transactionRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.doc)((0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this28.firestore, `Drivers/${driverId}/wallet/main/transactions`));
       const newTransaction = {
         id: transactionRef.id,
         amount: transaction.amount,
@@ -2023,14 +2229,14 @@ class AvatarService {
   }
 
   updateTripRating(requestId, rating, comment) {
-    var _this27 = this;
+    var _this29 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        const user = _this27.auth.currentUser;
+        const user = _this29.auth.currentUser;
         if (!user) throw new Error('No user logged in'); // Update in TripHistory collection
 
-        const tripHistoryRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this27.firestore, `Drivers/${user.uid}/TripHistory`);
+        const tripHistoryRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this29.firestore, `Drivers/${user.uid}/TripHistory`);
         const tripHistoryQuery = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.query)(tripHistoryRef, (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.where)('requestId', '==', requestId));
         const tripHistorySnapshot = yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.getDocs)(tripHistoryQuery);
 
@@ -2043,7 +2249,7 @@ class AvatarService {
         } // Update in History collection that's used by the history page
 
 
-        const historyRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this27.firestore, `Drivers/${user.uid}/History`);
+        const historyRef = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.collection)(_this29.firestore, `Drivers/${user.uid}/History`);
         const historyQuery = (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.query)(historyRef, (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.where)('requestId', '==', requestId));
         const historySnapshot = yield (0,_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.getDocs)(historyQuery);
 
@@ -2068,10 +2274,10 @@ class AvatarService {
 }
 
 AvatarService.ɵfac = function AvatarService_Factory(t) {
-  return new (t || AvatarService)(_angular_core__WEBPACK_IMPORTED_MODULE_7__["ɵɵinject"](_angular_fire_auth__WEBPACK_IMPORTED_MODULE_3__.Auth), _angular_core__WEBPACK_IMPORTED_MODULE_7__["ɵɵinject"](_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.Firestore), _angular_core__WEBPACK_IMPORTED_MODULE_7__["ɵɵinject"](_angular_fire_storage__WEBPACK_IMPORTED_MODULE_6__.Storage), _angular_core__WEBPACK_IMPORTED_MODULE_7__["ɵɵinject"](_auth_service__WEBPACK_IMPORTED_MODULE_2__.AuthService));
+  return new (t || AvatarService)(_angular_core__WEBPACK_IMPORTED_MODULE_8__["ɵɵinject"](_angular_fire_auth__WEBPACK_IMPORTED_MODULE_3__.Auth), _angular_core__WEBPACK_IMPORTED_MODULE_8__["ɵɵinject"](_angular_fire_firestore__WEBPACK_IMPORTED_MODULE_4__.Firestore), _angular_core__WEBPACK_IMPORTED_MODULE_8__["ɵɵinject"](_angular_fire_storage__WEBPACK_IMPORTED_MODULE_6__.Storage), _angular_core__WEBPACK_IMPORTED_MODULE_8__["ɵɵinject"](_auth_service__WEBPACK_IMPORTED_MODULE_2__.AuthService));
 };
 
-AvatarService.ɵprov = /*@__PURE__*/_angular_core__WEBPACK_IMPORTED_MODULE_7__["ɵɵdefineInjectable"]({
+AvatarService.ɵprov = /*@__PURE__*/_angular_core__WEBPACK_IMPORTED_MODULE_8__["ɵɵdefineInjectable"]({
   token: AvatarService,
   factory: AvatarService.ɵfac,
   providedIn: 'root'
@@ -2649,12 +2855,12 @@ __webpack_require__.r(__webpack_exports__);
 const environment = {
     production: false,
     firebase: {
-        apiKey: 'AIzaSyCtmbyzHwFRUoyCj4Fdjyt2qsPOCBSMenk',
+        apiKey: 'AIzaSyA5ShOlRI8493ovNQ4e--utZawgmjc3x0g',
         authDomain: 'pegasus-2be94.firebaseapp.com',
         projectId: 'pegasus-2be94',
-        storageBucket: 'pegasus-2be94.appspot.com',
+        storageBucket: 'pegasus-2be94.firebasestorage.app',
         messagingSenderId: '459110381543',
-        appId: '1:459110381543:android:05d31f86fd5fb8bcdfaf42'
+        appId: '1:459110381543:android:ba2071e2cea27c5cdfaf42'
     },
     apiKey: 'AIzaSyCTYjoPhLcshZVuEdr-amopUuVMy8lyEmA',
     onesignal: {

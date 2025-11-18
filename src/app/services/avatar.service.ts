@@ -26,7 +26,7 @@ export class AvatarService {
   private authStateSubscription: () => void;
   isRandom: any;
   user: User;
- 
+
 
   constructor(
     private auth: Auth,
@@ -34,44 +34,141 @@ export class AvatarService {
     private storage: Storage,
     private authService: AuthService
   ) {
+    // Add connectivity check
+    this.checkFirebaseConnectivity();
+    
     this.authStateSubscription = onAuthStateChanged(this.auth, async (user) => {
       if (user) {
         this.user = user;
-
-        await this.loadUserProfile();
+        console.log('User authenticated, loading profile...');
+        try {
+          await this.loadUserProfile();
+        } catch (error) {
+          console.error('Error loading user profile:', error);
+          // Retry after a delay
+          setTimeout(async () => {
+            try {
+              await this.loadUserProfile();
+            } catch (retryError) {
+              console.error('Retry failed for loading user profile:', retryError);
+            }
+          }, 3000);
+        }
       } else {
-        console.log("Hey");
+        console.log("User not authenticated");
         this.userName = "None";
       }
     });
   }
 
+  private async checkFirebaseConnectivity() {
+    try {
+      console.log('Checking Firebase connectivity...');
+      console.log('Firebase config:', {
+        projectId: this.firestore.app.options.projectId,
+        authDomain: this.firestore.app.options.authDomain,
+        apiKey: this.firestore.app.options.apiKey?.substring(0, 10) + '...'
+      });
+      
+      // Try to read from a simple collection to test connectivity
+      const testRef = collection(this.firestore, 'connectivity-test');
+      const testQuery = query(testRef, limit(1));
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connectivity test timeout')), 10000)
+      );
+      
+      await Promise.race([getDocs(testQuery), timeoutPromise]);
+      console.log('Firebase connectivity: OK');
+    } catch (error) {
+      console.error('Firebase connectivity issue:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
+      // Log additional diagnostic information
+      console.log('Network state:', navigator.onLine ? 'Online' : 'Offline');
+      console.log('User agent:', navigator.userAgent);
+      console.log('Platform:', window['Capacitor'] ? 'Native' : 'Web');
+    }
+  }
+
+  // Public method to test connectivity
+  async testConnectivity(): Promise<boolean> {
+    try {
+      await this.checkFirebaseConnectivity();
+      return true;
+    } catch (error) {
+      console.error('Connectivity test failed:', error);
+      return false;
+    }
+  }
+
   async loadUserProfile() {
     try {
-      const profileDoc = await getDoc(doc(this.firestore, 'Drivers', this.user.uid));
+      console.log('Loading user profile for UID:', this.user.uid);
       
+      // Add timeout to prevent hanging
+      const profilePromise = getDoc(doc(this.firestore, 'Drivers', this.user.uid));
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile load timeout')), 15000)
+      );
+      
+      const profileDoc = await Promise.race([profilePromise, timeoutPromise]) as any;
+
       if (profileDoc.exists()) {
         this.profile = profileDoc.data();
+        console.log('User profile loaded successfully');
       } else {
+        console.log('No existing profile found, creating default profile');
         // Create a default profile if none exists
         const defaultProfile = {
           Driver_id: this.user.uid,
-          Driver_name: 'New Driver',
+          Driver_name: this.user.displayName || 'New Driver',
           Driver_email: this.user.email || '',
           Driver_phone: this.user.phoneNumber || '',
-          Driver_imgUrl: '',
+          Driver_imgUrl: 'assets/imgs/about.svg',
           Driver_rating: 0,
           Driver_num_rides: 0,
           onlineState: false,
-          Earnings: 0
+          Earnings: 0,
+          isApproved: false,
+          submissionDate: serverTimestamp()
         };
 
-        // Set the default profile in Firestore
-        await setDoc(doc(this.firestore, 'Drivers', this.user.uid), defaultProfile);
-        this.profile = defaultProfile;
+        try {
+          // Set the default profile in Firestore with timeout
+          const setDocPromise = setDoc(doc(this.firestore, 'Drivers', this.user.uid), defaultProfile);
+          const setTimeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Profile creation timeout')), 15000)
+          );
+          
+          await Promise.race([setDocPromise, setTimeoutPromise]);
+          this.profile = defaultProfile;
+          console.log('Default profile created successfully');
+        } catch (setError) {
+          console.error('Error creating default profile:', setError);
+          // Use the default profile locally even if Firestore write fails
+          this.profile = defaultProfile;
+        }
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
+      // Create a minimal local profile as fallback
+      this.profile = {
+        Driver_id: this.user.uid,
+        Driver_name: this.user.displayName || 'Driver',
+        Driver_email: this.user.email || '',
+        Driver_phone: this.user.phoneNumber || '',
+        Driver_imgUrl: 'assets/imgs/about.svg',
+        Driver_rating: 0,
+        Driver_num_rides: 0,
+        onlineState: false,
+        Earnings: 0
+      };
+      
       throw error;
     }
   }
@@ -79,11 +176,11 @@ export class AvatarService {
 
 
 
-  
+
   getUserProfile(user: User): Observable<DocumentData> {
     const userDocRef = doc(this.firestore, `Drivers/${user.uid}`);
     return docData(userDocRef);
-  }  
+  }
 
   async rejectRider(): Promise<boolean> {
     try {
@@ -153,9 +250,9 @@ export class AvatarService {
         time: serverTimestamp(),
       };
       const historyId = uuidv4(); // Generate a random ID
-      
+
       // Make sure to include the requestId in the history document
-      await setDoc(doc(this.firestore, "Drivers", `${this.auth.currentUser.uid}/History/${historyId}`), { 
+      await setDoc(doc(this.firestore, "Drivers", `${this.auth.currentUser.uid}/History/${historyId}`), {
         ...loc,
         requestId: user.requestId || loc.requestId  // Include requestId
       });
@@ -230,16 +327,16 @@ export class AvatarService {
       fromName: this.profile.Rider_name
     });
   }
-  
-  async updatChatMessageInfo(id){
+
+  async updatChatMessageInfo(id) {
     return await setDoc(doc(this.firestore, `Request/${id}/`),
-    {
-      name: this.profile.Rider_name,
-      id: this.profile.Rider_id,
-      phone: this.profile.Rider_phone,
-      email: this.profile.Rider_email,
-      new: true
-    }
+      {
+        name: this.profile.Rider_name,
+        id: this.profile.Rider_id,
+        phone: this.profile.Rider_phone,
+        email: this.profile.Rider_email,
+        new: true
+      }
     )
   }
 
@@ -333,88 +430,110 @@ export class AvatarService {
     }
     return null;
   }
-  
+
   updateDriver(driver: Drivers): Promise<void> {
     const driverDocRef = doc(this.firestore, `Drivers/${driver.Driver_id}`);
     return updateDoc(driverDocRef, { ...driver });
   }
 
- async uploadImage(cameraFile: Photo, uid: string): Promise<string> {
+
+  async uploadImage(cameraFile: Photo, uid) {
+
+    const storageRef = ref(this.storage, this.pathM);
+
     try {
-      console.log('Starting image upload for uid:', uid);
+      await uploadString(storageRef, cameraFile.base64String, 'base64');
 
-      if (!cameraFile.base64String) {
-        console.error('No base64 string in camera file');
-        throw new Error('No image data provided');
-      }
+      const imageUrl = await getDownloadURL(storageRef);
 
-      console.log('Base64 string length:', cameraFile.base64String.length);
-
-      const timestamp = Date.now();
-      const fileName = `avatars/${uid}_${timestamp}.jpg`;
-      console.log('Uploading to:', fileName);
-
-      const storageRef = ref(this.storage, fileName);
-
-      // ---------- BLOB CONVERSION (unchanged) ----------
-      const byteCharacters = atob(cameraFile.base64String);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'image/jpeg' });
-
-      console.log('Blob created, size:', blob.size);
-
-      // ---------- UPLOAD (modular SDK) ----------
-      console.log('Starting upload...');
-      const uploadResult = await uploadBytes(storageRef, blob, {
-        contentType: 'image/jpeg',
-        customMetadata: {
-          uploadedBy: uid,
-          uploadedAt: timestamp.toString(),
-        },
-      });
-
-      console.log('Upload complete, uploadResult:', uploadResult);
-
-      // ---------- GET DOWNLOAD URL (with retry) ----------
-      let imageUrl = '';
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          imageUrl = await getDownloadURL(uploadResult.ref);
-          if (imageUrl) break;
-        } catch (urlError) {
-          console.error(`DownloadURL attempt ${4 - retries} failed:`, urlError);
-          retries--;
-          if (retries === 0) throw new Error('Failed to get download URL');
-          await new Promise(r => setTimeout(r, 1000));
-        }
-      }
-
-      // ---------- FIRESTORE UPDATE (unchanged) ----------
       const userDocRef = doc(this.firestore, `Drivers/${uid}`);
-      const snap = await getDoc(userDocRef);
-      if (snap.exists()) {
-        await updateDoc(userDocRef, { Driver_imgUrl: imageUrl });
-        console.log('Updated existing driver document');
-      } else {
-        await setDoc(userDocRef, { Driver_imgUrl: imageUrl }, { merge: true });
-        console.log('Created new driver document');
-      }
-
-      console.log('Image upload complete! Final URL:', imageUrl);
-      return imageUrl;
-    } catch (e: any) {
-      console.error('Error uploading image:', e);
-      console.error('Code:', e.code);
-      console.error('Message:', e.message);
-      throw e;          // keep throwing – caller shows the alert
+      await setDoc(userDocRef, {
+        imageUrl,
+      });
+      return true;
+    } catch (e) {
+      console.log(e);
+      return null;
     }
-  
   }
+
+
+  //  async uploadImage(cameraFile: Photo, uid: string): Promise<string> {
+  //     try {
+  //       console.log('Starting image upload for uid:', uid);
+
+  //       if (!cameraFile.base64String) {
+  //         console.error('No base64 string in camera file');
+  //         throw new Error('No image data provided');
+  //       }
+
+  //       console.log('Base64 string length:', cameraFile.base64String.length);
+
+  //       const timestamp = Date.now();
+  //       const fileName = `avatars/${uid}_${timestamp}.jpg`;
+  //       console.log('Uploading to:', fileName);
+
+  //       const storageRef = ref(this.storage, fileName);
+
+  //       // ---------- BLOB CONVERSION (unchanged) ----------
+  //       const byteCharacters = atob(cameraFile.base64String);
+  //       const byteNumbers = new Array(byteCharacters.length);
+  //       for (let i = 0; i < byteCharacters.length; i++) {
+  //         byteNumbers[i] = byteCharacters.charCodeAt(i);
+  //       }
+  //       const byteArray = new Uint8Array(byteNumbers);
+  //       const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
+  //       console.log('Blob created, size:', blob.size);
+
+  //       // ---------- UPLOAD (modular SDK) ----------
+  //       console.log('Starting upload...');
+  //       const uploadResult = await uploadBytes(storageRef, blob, {
+  //         contentType: 'image/jpeg',
+  //         customMetadata: {
+  //           uploadedBy: uid,
+  //           uploadedAt: timestamp.toString(),
+  //         },
+  //       });
+
+  //       console.log('Upload complete, uploadResult:', uploadResult);
+
+  //       // ---------- GET DOWNLOAD URL (with retry) ----------
+  //       let imageUrl = '';
+  //       let retries = 3;
+  //       while (retries > 0) {
+  //         try {
+  //           imageUrl = await getDownloadURL(uploadResult.ref);
+  //           if (imageUrl) break;
+  //         } catch (urlError) {
+  //           console.error(`DownloadURL attempt ${4 - retries} failed:`, urlError);
+  //           retries--;
+  //           if (retries === 0) throw new Error('Failed to get download URL');
+  //           await new Promise(r => setTimeout(r, 1000));
+  //         }
+  //       }
+
+  //       // ---------- FIRESTORE UPDATE (unchanged) ----------
+  //       const userDocRef = doc(this.firestore, `Drivers/${uid}`);
+  //       const snap = await getDoc(userDocRef);
+  //       if (snap.exists()) {
+  //         await updateDoc(userDocRef, { Driver_imgUrl: imageUrl });
+  //         console.log('Updated existing driver document');
+  //       } else {
+  //         await setDoc(userDocRef, { Driver_imgUrl: imageUrl }, { merge: true });
+  //         console.log('Created new driver document');
+  //       }
+
+  //       console.log('Image upload complete! Final URL:', imageUrl);
+  //       return imageUrl;
+  //     } catch (e: any) {
+  //       console.error('Error uploading image:', e);
+  //       console.error('Code:', e.code);
+  //       console.error('Message:', e.message);
+  //       throw e;          // keep throwing – caller shows the alert
+  //     }
+
+  //   }
 
   getCards(): Observable<DocumentData[]> {
     const userDocRef = collection(this.firestore, `Drivers/${this.auth.currentUser.uid}/Cards`);
@@ -425,11 +544,101 @@ export class AvatarService {
     const userDocRef = doc(this.firestore, `Drivers/${this.auth.currentUser.uid}`);
     return docData(userDocRef);
   }
-
-  getCartypes(): Observable<DocumentData[]> {
+ getCartypes(): Observable<DocumentData[]> {
+    console.log('Fetching cartypes from Firestore...');
     const cartypesRef = collection(this.firestore, `Cartypes`);
-    return collectionData(cartypesRef);
+    
+    return new Observable(observer => {
+      // Set a timeout for the Firestore request
+      const timeoutId = setTimeout(() => {
+        console.log('Cartypes fetch timed out, using mock data');
+        const mockCartypes = [
+          { id: 'sedan', name: 'Sedan' },
+          { id: 'suv', name: 'SUV' },
+          { id: 'hatchback', name: 'Hatchback' },
+          { id: 'pickup', name: 'Pickup Truck' },
+          { id: 'van', name: 'Van' },
+          { id: 'coupe', name: 'Coupe' }
+        ];
+        observer.next(mockCartypes);
+        observer.complete();
+      }, 10000); // 10 second timeout
+
+      collectionData(cartypesRef).subscribe({
+        next: (data) => {
+          clearTimeout(timeoutId);
+          console.log('Cartypes received from Firestore:', data);
+          
+          // If no data is returned from Firestore, use mock data
+          if (!data || data.length === 0) {
+            console.log('No cartypes found in Firestore, using mock data');
+            const mockCartypes = [
+              { id: 'sedan', name: 'Sedan' },
+              { id: 'suv', name: 'SUV' },
+              { id: 'hatchback', name: 'Hatchback' },
+              { id: 'pickup', name: 'Pickup Truck' },
+              { id: 'van', name: 'Van' },
+              { id: 'coupe', name: 'Coupe' }
+            ];
+            observer.next(mockCartypes);
+          } else {
+            observer.next(data);
+          }
+        },
+        error: (error) => {
+          clearTimeout(timeoutId);
+          console.error('Error fetching cartypes from Firestore:', error);
+          console.error('Error code:', error.code);
+          console.error('Error message:', error.message);
+          
+          // Provide mock data on error
+          const mockCartypes = [
+            { id: 'sedan', name: 'Sedan' },
+            { id: 'suv', name: 'SUV' },
+            { id: 'hatchback', name: 'Hatchback' },
+            { id: 'pickup', name: 'Pickup Truck' },
+            { id: 'van', name: 'Van' },
+            { id: 'coupe', name: 'Coupe' }
+          ];
+          observer.next(mockCartypes);
+        },
+        complete: () => {
+          clearTimeout(timeoutId);
+          observer.complete();
+        }
+      });
+    });
   }
+  // getCartypes(): Observable<DocumentData[]> {
+  //   try {
+  //     console.log('Fetching cartypes from Firestore...');
+  //     const cartypesRef = collection(this.firestore, `Cartypes`);
+  //     const cartypesObservable = collectionData(cartypesRef);
+      
+  //     // Add error handling to the observable
+  //     return new Observable(observer => {
+  //       cartypesObservable.subscribe({
+  //         next: (data) => {
+  //           console.log('Cartypes fetched successfully:', data);
+  //           observer.next(data);
+  //         },
+  //         error: (error) => {
+  //           console.error('Error fetching cartypes:', error);
+  //           console.error('Error code:', error.code);
+  //           console.error('Error message:', error.message);
+  //           observer.error(error);
+  //         },
+  //         complete: () => {
+  //           console.log('Cartypes fetch completed');
+  //           observer.complete();
+  //         }
+  //       });
+  //     });
+  //   } catch (error) {
+  //     console.error('Error in getCartypes method:', error);
+  //     throw error;
+  //   }
+  // }
 
   getRequests(): Observable<DocumentData> {
     const requestsRef = doc(this.firestore, `Request/${this.auth.currentUser.uid}`);
@@ -534,9 +743,9 @@ export class AvatarService {
       return false;
     }
   }
-  
-  
-  
+
+
+
 
   async updateEarnings(value: number): Promise<boolean> {
     try {
@@ -563,7 +772,7 @@ export class AvatarService {
       lastUpdated: serverTimestamp(),
       isVerified: false
     };
-    
+
     await setDoc(walletRef, defaultWallet);
   }
 
@@ -574,7 +783,7 @@ export class AvatarService {
 
   getWalletTransactions(limitCount: number = 10): Observable<WalletTransaction[]> {
     const transactionsRef = collection(
-      this.firestore, 
+      this.firestore,
       `Drivers/${this.auth.currentUser.uid}/wallet/main/transactions`
     );
     return collectionData(
@@ -585,7 +794,7 @@ export class AvatarService {
   async addTransaction(transaction: Partial<WalletTransaction>): Promise<void> {
     const batch = writeBatch(this.firestore);
     const driverId = this.auth.currentUser.uid;
-    
+
     // Get current wallet
     const walletRef = doc(this.firestore, `Drivers/${driverId}/wallet/main`);
     const walletSnap = await getDoc(walletRef);
@@ -622,12 +831,12 @@ export class AvatarService {
     try {
       const user = this.auth.currentUser;
       if (!user) throw new Error('No user logged in');
-      
+
       // Update in TripHistory collection
       const tripHistoryRef = collection(this.firestore, `Drivers/${user.uid}/TripHistory`);
       const tripHistoryQuery = query(tripHistoryRef, where('requestId', '==', requestId));
       const tripHistorySnapshot = await getDocs(tripHistoryQuery);
-      
+
       if (!tripHistorySnapshot.empty) {
         const tripDoc = tripHistorySnapshot.docs[0];
         await updateDoc(doc(tripHistoryRef, tripDoc.id), {
@@ -635,12 +844,12 @@ export class AvatarService {
           driverComment: comment
         });
       }
-      
+
       // Update in History collection that's used by the history page
       const historyRef = collection(this.firestore, `Drivers/${user.uid}/History`);
       const historyQuery = query(historyRef, where('requestId', '==', requestId));
       const historySnapshot = await getDocs(historyQuery);
-      
+
       if (!historySnapshot.empty) {
         const historyDoc = historySnapshot.docs[0];
         await updateDoc(doc(historyRef, historyDoc.id), {
@@ -650,7 +859,7 @@ export class AvatarService {
       } else {
         console.warn('Could not find history document with requestId:', requestId);
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error updating trip rating:', error);

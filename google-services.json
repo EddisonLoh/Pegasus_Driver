@@ -7,15 +7,34 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:459110381543:android:1160624749b8bbfa564260",
+        "mobilesdk_app_id": "1:459110381543:android:ba2071e2cea27c5cdfaf42",
         "android_client_info": {
-          "package_name": "com.pegasus.app"
+          "package_name": "com.pegasus.driver"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCTYjoPhLcshZVuEdr-amopUuVMy8lyEmA"
+          "current_key": "AIzaSyA5ShOlRI8493ovNQ4e--utZawgmjc3x0g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:459110381543:android:05d31f86fd5fb8bcdfaf42",
+        "android_client_info": {
+          "package_name": "io.ionic.rider"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5ShOlRI8493ovNQ4e--utZawgmjc3x0g"
         }
       ],
       "services": {

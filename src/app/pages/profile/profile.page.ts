@@ -92,4 +92,19 @@ export class ProfilePage implements OnInit {
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     localStorage.setItem('preferred_language', lang);
   }
+
+  getProfileImageSrc(): string {
+    if (!this.profile?.Driver_imgUrl) {
+      return 'assets/imgs/about.svg';
+    }
+    
+    // Check if it's an external URL (ui-avatars.com, via.placeholder.com, etc.)
+    if (this.profile.Driver_imgUrl.startsWith('http://') || this.profile.Driver_imgUrl.startsWith('https://')) {
+      // If it's an external URL, replace with local asset for Android compatibility
+      return 'assets/imgs/about.svg';
+    }
+    
+    // If it's already a local asset or base64 data, use it as is
+    return this.profile.Driver_imgUrl;
+  }
 }

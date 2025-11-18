@@ -128,7 +128,7 @@ __webpack_require__.r(__webpack_exports__);
 
 function LoginPage_ion_text_31_ion_text_1_Template(rf, ctx) {
   if (rf & 1) {
-    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementStart"](0, "ion-text", 36);
+    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementStart"](0, "ion-text", 35);
     _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵtext"](1);
     _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵpipe"](2, "translate");
     _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementEnd"]();
@@ -142,7 +142,7 @@ function LoginPage_ion_text_31_ion_text_1_Template(rf, ctx) {
 
 function LoginPage_ion_text_31_ion_text_2_Template(rf, ctx) {
   if (rf & 1) {
-    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementStart"](0, "ion-text", 36);
+    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementStart"](0, "ion-text", 35);
     _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵtext"](1);
     _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵpipe"](2, "translate");
     _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementEnd"]();
@@ -156,9 +156,9 @@ function LoginPage_ion_text_31_ion_text_2_Template(rf, ctx) {
 
 function LoginPage_ion_text_31_Template(rf, ctx) {
   if (rf & 1) {
-    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementStart"](0, "ion-text", 34);
-    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵtemplate"](1, LoginPage_ion_text_31_ion_text_1_Template, 3, 3, "ion-text", 35);
-    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵtemplate"](2, LoginPage_ion_text_31_ion_text_2_Template, 3, 3, "ion-text", 35);
+    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementStart"](0, "ion-text", 33);
+    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵtemplate"](1, LoginPage_ion_text_31_ion_text_1_Template, 3, 3, "ion-text", 34);
+    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵtemplate"](2, LoginPage_ion_text_31_ion_text_2_Template, 3, 3, "ion-text", 34);
     _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementEnd"]();
   }
 
@@ -187,13 +187,13 @@ function LoginPage_ion_label_33_Template(rf, ctx) {
 
 function LoginPage_ion_icon_34_Template(rf, ctx) {
   if (rf & 1) {
-    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelement"](0, "ion-icon", 37);
+    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelement"](0, "ion-icon", 36);
   }
 }
 
 function LoginPage_ion_progress_bar_35_Template(rf, ctx) {
   if (rf & 1) {
-    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelement"](0, "ion-progress-bar", 38);
+    _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelement"](0, "ion-progress-bar", 37);
   }
 }
 
@@ -210,14 +210,17 @@ class LoginPage {
     this.platform = platform;
     this.translate = translate;
     this.languageService = languageService;
+    this.CountryCode = '+60';
     this.CountryJson = _environments_environment__WEBPACK_IMPORTED_MODULE_2__.environment.CountryJson;
-    this.flag = "https://cdn.kcak11.com/CountryFlags/countries/ng.svg";
+    this.flag = "https://cdn.kcak11.com/CountryFlags/countries/my.svg";
     this.filteredCountries = [];
     this.slideOpts = {
       initialSlide: 0,
       speed: 300,
       autoplay: true
     };
+    this.numberT = '+60';
+    this.setDefaultCountry();
     this.detectUserCountry();
   }
 
@@ -227,17 +230,20 @@ class LoginPage {
         validators: [_angular_forms__WEBPACK_IMPORTED_MODULE_11__.Validators.required, _angular_forms__WEBPACK_IMPORTED_MODULE_11__.Validators.minLength(10), _angular_forms__WEBPACK_IMPORTED_MODULE_11__.Validators.maxLength(10)]
       })
     });
-    this.filteredCountries = this.CountryJson; // Initialize ReCaptcha verifier
+    this.filteredCountries = this.CountryJson; // Initialize ReCaptcha verifier only for web platform
 
-    this.recaptchaVerifier = new _angular_fire_auth__WEBPACK_IMPORTED_MODULE_12__.RecaptchaVerifier('sign-in-button', {
-      'size': 'invisible',
-      'callback': response => {
-        // reCAPTCHA solved - allow signIn
-        this.signIn();
-      },
-      'expired-callback': () => {// Response expired - handle expired reCAPTCHA
-      }
-    }, this.authY);
+    if (typeof window !== 'undefined' && window.document && !window['Capacitor']) {
+      this.recaptchaVerifier = new _angular_fire_auth__WEBPACK_IMPORTED_MODULE_12__.RecaptchaVerifier('sign-in-button', {
+        'size': 'invisible',
+        'callback': response => {
+          // reCAPTCHA solved - allow signIn
+          this.signIn();
+        },
+        'expired-callback': () => {// Response expired - handle expired reCAPTCHA
+        }
+      }, this.authY);
+    }
+
     this.initializeBackButtonCustomHandler(); // Initialize back button handler
   }
 
@@ -413,28 +419,76 @@ class LoginPage {
     this.languageService.setLanguage(lang);
   }
 
+  setDefaultCountry() {
+    // Set Malaysia as default
+    const malaysia = this.CountryJson.find(c => c.isoCode.toLowerCase() === 'my');
+
+    if (malaysia) {
+      this.CountryCode = malaysia.dialCode;
+      this.numberT = malaysia.dialCode;
+      this.flag = malaysia.flag;
+    }
+  }
+
   detectUserCountry() {
     var _this5 = this;
 
     return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
       try {
-        const response = yield fetch('https://ipapi.co/json/');
-        const data = yield response.json();
-        const countryCode = data.country_code.toLowerCase(); // Find matching country from CountryJson
+        // Try multiple APIs for better reliability
+        let countryCode = yield _this5.tryCountryDetection();
 
-        const country = _this5.CountryJson.find(c => c.isoCode.toLowerCase() === countryCode);
+        if (countryCode) {
+          // Find matching country from CountryJson
+          const country = _this5.CountryJson.find(c => c.isoCode.toLowerCase() === countryCode.toLowerCase());
 
-        if (country) {
-          _this5.CountryCode = country.dialCode;
-          _this5.numberT = country.dialCode;
-          _this5.flag = `https://cdn.kcak11.com/CountryFlags/countries/${countryCode}.svg`;
+          if (country) {
+            _this5.CountryCode = country.dialCode;
+            _this5.numberT = country.dialCode;
+            _this5.flag = country.flag;
+            console.log('Country detected:', country.name, country.dialCode);
+          }
         }
       } catch (error) {
-        console.error('Error detecting country:', error); // Fallback to default
+        console.error('Error detecting country:', error); // Keep the default Malaysia settings - don't override them
 
-        _this5.CountryCode = '+234';
-        _this5.numberT = '+234';
+        console.log('Using default country: Malaysia (+60)');
       }
+    })();
+  }
+
+  tryCountryDetection() {
+    return (0,C_Users_user_Pegasus_Driver_node_modules_babel_runtime_helpers_esm_asyncToGenerator_js__WEBPACK_IMPORTED_MODULE_0__["default"])(function* () {
+      const apis = ['https://ipapi.co/json/', 'https://api.ipify.org?format=json', 'https://httpbin.org/ip' // Another fallback
+      ];
+
+      for (const apiUrl of apis) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const response = yield fetch(apiUrl, {
+            signal: controller.signal,
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const data = yield response.json(); // Handle different API response formats
+
+            if (data.country_code) {
+              return data.country_code;
+            } // If we get IP, we could use another service, but for now just return null
+
+          }
+        } catch (error) {
+          console.log(`Failed to fetch from ${apiUrl}:`, error);
+          continue;
+        }
+      }
+
+      return null;
     })();
   }
 
@@ -449,7 +503,7 @@ LoginPage.ɵcmp = /*@__PURE__*/_angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵ
   selectors: [["app-login"]],
   decls: 46,
   vars: 19,
-  consts: [[1, "ion-no-border", "modern-header", 3, "translucent"], ["lines", "none"], [1, "ion-padding"], ["color", "primary", 1, "ion-text-center"], [1, "app-title"], [1, "app-tagline"], [1, "ion-padding", "modern-content"], ["pager", "true", 3, "options"], ["src", "../assets/imgs/main.svg"], ["src", "../assets/imgs/main1.svg"], ["src", "../assets/imgs/main2.svg"], [1, "ion-no-padding"], [1, "ion-no-padding", "full-width"], [1, "ion-margin-horizontal"], [1, "ion-padding", "modern-form", 3, "formGroup"], ["id", "sign-in-button"], [1, "phone-input-container"], ["lines", "none", 1, "country-select"], ["fill", "clear", 1, "country-button", 3, "click"], [1, "country-flag", 3, "src"], ["name", "chevron-down-outline"], ["formControlName", "phone", "type", "tel", "clearInput", "", "minlength", "10", "maxlength", "10", 1, "phone-input", 3, "placeholder", "ionFocus", "ionBlur"], ["class", "ion-text-center", 4, "ngIf"], ["shape", "round", "size", "large", "type", "submit", "expand", "block", 1, "submit-button", 3, "disabled", "click"], [4, "ngIf"], ["name", "arrow-forward-outline", 4, "ngIf"], ["type", "indeterminate", 4, "ngIf"], ["vertical", "bottom", "horizontal", "end", "slot", "fixed"], ["name", "globe"], ["side", "top"], [3, "click"], ["src", "https://cdn.kcak11.com/CountryFlags/countries/us.svg", 2, "width", "24px", "height", "24px"], ["src", "https://cdn.kcak11.com/CountryFlags/countries/sa.svg", 2, "width", "24px", "height", "24px"], ["id", "recaptcha-container"], [1, "ion-text-center"], ["class", "error", "color", "danger", 4, "ngIf"], ["color", "danger", 1, "error"], ["name", "arrow-forward-outline"], ["type", "indeterminate"]],
+  consts: [[1, "ion-no-border", "modern-header", 3, "translucent"], ["lines", "none"], [1, "ion-padding"], ["color", "primary", 1, "ion-text-center"], [1, "app-title"], [1, "app-tagline"], [1, "ion-padding", "modern-content"], ["pager", "true", 3, "options"], ["src", "../assets/imgs/main.svg"], ["src", "../assets/imgs/main1.svg"], ["src", "../assets/imgs/main2.svg"], [1, "ion-no-padding"], [1, "ion-no-padding", "full-width"], [1, "ion-margin-horizontal"], [1, "ion-padding", "modern-form", 3, "formGroup"], ["id", "sign-in-button"], [1, "phone-input-container"], ["lines", "none", 1, "country-select"], ["fill", "clear", 1, "country-button", 3, "click"], [1, "country-flag", 3, "src"], ["name", "chevron-down-outline"], ["formControlName", "phone", "type", "tel", "clearInput", "", "minlength", "10", "maxlength", "10", 1, "phone-input", 3, "placeholder", "ionFocus", "ionBlur"], ["class", "ion-text-center", 4, "ngIf"], ["shape", "round", "size", "large", "type", "submit", "expand", "block", 1, "submit-button", 3, "disabled", "click"], [4, "ngIf"], ["name", "arrow-forward-outline", 4, "ngIf"], ["type", "indeterminate", 4, "ngIf"], ["vertical", "bottom", "horizontal", "end", "slot", "fixed"], ["name", "globe"], ["side", "top"], [3, "click"], ["src", "assets/icon/flag.png", 2, "width", "24px", "height", "24px"], ["id", "recaptcha-container"], [1, "ion-text-center"], ["class", "error", "color", "danger", 4, "ngIf"], ["color", "danger", 1, "error"], ["name", "arrow-forward-outline"], ["type", "indeterminate"]],
   template: function LoginPage_Template(rf, ctx) {
     if (rf & 1) {
       _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementStart"](0, "ion-header", 0)(1, "ion-list", 1)(2, "ion-list-header", 2)(3, "ion-label", 3)(4, "h1", 4);
@@ -510,10 +564,10 @@ LoginPage.ɵcmp = /*@__PURE__*/_angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵ
       _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵlistener"]("click", function LoginPage_Template_ion_fab_button_click_42_listener() {
         return ctx.changeLanguage("ar");
       });
-      _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelement"](43, "ion-img", 32);
+      _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelement"](43, "ion-img", 31);
       _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementEnd"]()()()();
       _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementStart"](44, "ion-footer");
-      _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelement"](45, "div", 33);
+      _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelement"](45, "div", 32);
       _angular_core__WEBPACK_IMPORTED_MODULE_10__["ɵɵelementEnd"]();
     }
 

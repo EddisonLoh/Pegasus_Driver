@@ -5,12 +5,12 @@
 export const environment = {
     production: false,
     firebase: {
-        apiKey: 'AIzaSyCtmbyzHwFRUoyCj4Fdjyt2qsPOCBSMenk',
+        apiKey: 'AIzaSyA5ShOlRI8493ovNQ4e--utZawgmjc3x0g',
         authDomain: 'pegasus-2be94.firebaseapp.com',
         projectId: 'pegasus-2be94',
-        storageBucket: 'pegasus-2be94.appspot.com',
+        storageBucket: 'pegasus-2be94.firebasestorage.app',
         messagingSenderId: '459110381543',
-        appId: '1:459110381543:android:05d31f86fd5fb8bcdfaf42'
+        appId: '1:459110381543:android:ba2071e2cea27c5cdfaf42'
     },
     apiKey: 'AIzaSyCTYjoPhLcshZVuEdr-amopUuVMy8lyEmA',
     onesignal: {

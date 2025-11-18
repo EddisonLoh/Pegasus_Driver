@@ -1,5 +1,5 @@
 {
-	"appId": "io.ionic.driver",
+	"appId": "com.pegasus.app",
 	"appName": "myDriver",
 	"webDir": "www",
 	"bundledWebRuntime": false,
@@ -8,13 +8,15 @@
 			"resize": "none"
 		},
     "CapacitorHttp": {
-      "enabled": true
+      "enabled": false
     },
     "server": {
   "allowNavigation": "firebasestorage.googleapis.com"
 },
 		  "android": {
-            "allowMixedContent": true
+            "allowMixedContent": true,
+            "cleartext": true,
+            "webContentsDebuggingEnabled": true
           },
 		"GoogleAuth": {
 		  "scopes": ["profile", "email"],

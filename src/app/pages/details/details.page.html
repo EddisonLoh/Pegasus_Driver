@@ -10,8 +10,8 @@
     <div class="profile-image-section">
       <div class="image-container" (click)="presentImageSourceActionSheet()">
         <ng-container *ngIf="!isUploading; else uploadingTemplate">
-          <img [src]="imageUrl" *ngIf="imageUrl" alt="Profile photo">
-          <div class="placeholder" *ngIf="!imageUrl">
+          <img [src]="imageDisplayUrl" *ngIf="imageDisplayUrl" alt="Profile photo">
+          <div class="placeholder" *ngIf="!imageDisplayUrl">
             <ion-icon name="person"></ion-icon>
           </div>
           <div class="overlay">
@@ -38,9 +38,7 @@
 
           <ion-item [class.ion-invalid]="form.get('fullname')?.touched && form.get('fullname')?.invalid">
             <ion-label position="floating">{{ 'DETAILS.PERSONAL_INFO.FIRST_NAME' | translate }}</ion-label>
-            <ion-input 
-              formControlName="fullname" 
-              type="text">
+            <ion-input formControlName="fullname" type="text">
             </ion-input>
             <ion-note slot="error" *ngIf="form.get('fullname')?.touched && form.get('fullname')?.errors?.['required']">
               {{ 'VALIDATION.REQUIRED' | translate }}
@@ -48,17 +46,12 @@
           </ion-item>
 
           <ion-item>
-            <ion-input 
-              formControlName="lastname" 
-              [placeholder]="'DETAILS.PERSONAL_INFO.LAST_NAME' | translate">
+            <ion-input formControlName="lastname" [placeholder]="'DETAILS.PERSONAL_INFO.LAST_NAME' | translate">
             </ion-input>
           </ion-item>
 
           <ion-item>
-            <ion-input 
-              formControlName="email" 
-              type="email" 
-              [placeholder]="'DETAILS.PERSONAL_INFO.EMAIL' | translate">
+            <ion-input formControlName="email" type="email" [placeholder]="'DETAILS.PERSONAL_INFO.EMAIL' | translate">
             </ion-input>
           </ion-item>
         </ion-item-group>
@@ -69,16 +62,12 @@
             <ion-label>{{ 'DETAILS.VEHICLE_INFO.TITLE' | translate }}</ion-label>
           </ion-item-divider>
           <ion-item>
-            <ion-input 
-              formControlName="plateNumber" 
-              [placeholder]="'DETAILS.VEHICLE_INFO.PLATE_NUMBER' | translate">
+            <ion-input formControlName="plateNumber" [placeholder]="'DETAILS.VEHICLE_INFO.PLATE_NUMBER' | translate">
             </ion-input>
           </ion-item>
 
           <ion-item>
-            <ion-select 
-              formControlName="carType" 
-              [placeholder]="'DETAILS.VEHICLE_INFO.CAR_TYPE' | translate">
+            <ion-select formControlName="carType" [placeholder]="'DETAILS.VEHICLE_INFO.CAR_TYPE' | translate">
               <ion-select-option *ngFor="let type of cartypes" [value]="type.id">
                 {{type.name}}
               </ion-select-option>
@@ -86,16 +75,12 @@
           </ion-item>
 
           <ion-item>
-            <ion-input 
-              formControlName="carName" 
-              [placeholder]="'DETAILS.VEHICLE_INFO.CAR_NAME' | translate">
+            <ion-input formControlName="carName" [placeholder]="'DETAILS.VEHICLE_INFO.CAR_NAME' | translate">
             </ion-input>
           </ion-item>
 
           <ion-item>
-            <ion-input 
-              formControlName="mileage" 
-              type="number" 
+            <ion-input formControlName="mileage" type="number"
               [placeholder]="'DETAILS.VEHICLE_INFO.MILEAGE' | translate">
             </ion-input>
           </ion-item>
@@ -106,22 +91,23 @@
           <ion-item-divider>
             <ion-label>{{ 'DETAILS.LICENSE_INFO.TITLE' | translate }}</ion-label>
           </ion-item-divider>
-          
+
           <ion-item>
-            <ion-input 
-              formControlName="driverLicense" 
-              [placeholder]="'DETAILS.LICENSE_INFO.NUMBER' | translate">
+            <ion-input formControlName="driverLicense" [placeholder]="'DETAILS.LICENSE_INFO.NUMBER' | translate">
             </ion-input>
           </ion-item>
 
           <!-- License Image Preview -->
           <div class="license-image-section">
             <div class="license-image-container" (click)="selectDriverLicenseImage()">
-              <ng-container *ngIf="!isUploading; else licenseUploadingTemplate">
-                <img [src]="form.get('driverLicenseImage')?.value" *ngIf="form.get('driverLicenseImage')?.value" alt="License photo">
-                <div class="placeholder" *ngIf="!form.get('driverLicenseImage')?.value">
+              <ng-container *ngIf="!isUploadingLicense; else licenseUploadingTemplate">
+                <img [src]="licenseDisplayUrl" *ngIf="licenseDisplayUrl" alt="License photo">
+                <div class="placeholder" *ngIf="!licenseDisplayUrl">
                   <ion-icon name="id-card"></ion-icon>
                   <p>{{ 'DETAILS.LICENSE_INFO.TAP_TO_UPLOAD' | translate }}</p>
+                </div>
+                <div class="overlay" *ngIf="licenseDisplayUrl">
+                  <ion-icon name="camera"></ion-icon>
                 </div>
               </ng-container>
               <ng-template #licenseUploadingTemplate>
@@ -137,12 +123,25 @@
     </div>
 
     <div class="submit-section">
-      <ion-button expand="block" (click)="updateProfile()" 
-                [disabled]="!form.valid || isSubmitting"
-                class="submit-button">
+      <ion-button expand="block" (click)="updateProfile()" [disabled]="!isFormCompleteForSubmission() || isSubmitting"
+        class="submit-button">
         <ion-icon name="save" slot="start"></ion-icon>
         {{ 'DETAILS.BUTTONS.SUBMIT' | translate }}
         <ion-spinner name="crescent" *ngIf="isSubmitting"></ion-spinner>
+      </ion-button>
+      
+      <!-- Debug info - remove this in production -->
+      <div style="margin-top: 10px; font-size: 12px; color: #666;" *ngIf="!isFormCompleteForSubmission()">
+        <p>Missing requirements:</p>
+        <p *ngIf="!form.valid">❌ Form validation incomplete</p>
+        <p *ngIf="!imageUrl || (!imageUrl.startsWith('img_') && !imageUrl.startsWith('assets/'))">❌ Profile photo required</p>
+        <p *ngIf="!form.get('driverLicenseImage')?.value || (!form.get('driverLicenseImage')?.value.startsWith('img_') && !form.get('driverLicenseImage')?.value.startsWith('assets/'))">❌ License photo required</p>
+      </div>
+
+      <!-- Connectivity test button - remove in production -->
+      <ion-button fill="clear" size="small" (click)="testConnectivity()" style="margin-top: 10px;">
+        <ion-icon name="wifi" slot="start"></ion-icon>
+        Test Firebase Connection
       </ion-button>
     </div>
   </form>

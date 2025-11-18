@@ -17,7 +17,7 @@
 <ion-content class="ion-padding">
   <div class="profile-header" *ngIf="profile">
     <div class="profile-image-container">
-      <img [src]="profile?.Driver_imgUrl" (click)="changeImage()" *ngIf="profile?.Driver_imgUrl">
+      <img [src]="getProfileImageSrc()" (click)="changeImage()" *ngIf="profile?.Driver_imgUrl">
       <div class="image-placeholder" (click)="changeImage()" *ngIf="!profile?.Driver_imgUrl">
         <ion-icon name="person"></ion-icon>
       </div>

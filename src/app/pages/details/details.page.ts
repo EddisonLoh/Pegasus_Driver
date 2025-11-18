@@ -9,7 +9,7 @@ import { Camera, CameraResultType, CameraSource, Photo } from '@capacitor/camera
 import { ActionSheetController, AlertController, LoadingController, Platform } from '@ionic/angular';
 import { TranslateService } from '@ngx-translate/core';
 import { distinctUntilChanged, debounceTime } from 'rxjs/operators';
-import { doc, setDoc, serverTimestamp } from '@angular/fire/firestore';
+import { doc, setDoc, serverTimestamp, Firestore, getDoc } from '@angular/fire/firestore';
 import { Drivers } from './../../interfaces/drivers';
 import { geohashForLocation } from 'geofire-common';
 
@@ -22,13 +22,16 @@ export class DetailsPage implements OnInit {
   [x: string]: any;
   form: FormGroup;
   imageUrl: string;
+  imageDisplayUrl: string = '';
+  licenseDisplayUrl: string = '';
   approve: boolean;
   approve2: boolean;
   user: User;
-  cartypes: import("@angular/fire/firestore").DocumentData[];
+  cartypes: import("@angular/fire/firestore").DocumentData[] = [];
   backButtonSubscription: any;
   isSubmitting = false;
   isUploading = false;
+  isUploadingLicense = false;
 
   constructor(
     private overlay: OverlayService,
@@ -39,7 +42,8 @@ export class DetailsPage implements OnInit {
     private alertController: AlertController,
     private loadingController: LoadingController,
     private platform: Platform,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private firestore: Firestore
   ) {
     // Ensure the user is authenticated
     this.authy.onAuthStateChanged((user) => {
@@ -54,15 +58,93 @@ export class DetailsPage implements OnInit {
         });
       }
     });
-
-    this.avatar.getCartypes().subscribe((d) => {
-      console.log(d);
-      this.cartypes = d;
+    this.avatar.getCartypes().subscribe({
+      next: (d) => {
+        console.log('Cartypes received:', d);
+        this.cartypes = d;
+      },
+      error: (error) => {
+        console.error('Failed to fetch cartypes:', error);
+        // Fallback to mock data if service fails
+        this.cartypes = [
+          { id: 'sedan', name: 'Sedan' },
+          { id: 'suv', name: 'SUV' },
+          { id: 'hatchback', name: 'Hatchback' },
+          { id: 'pickup', name: 'Pickup Truck' },
+          { id: 'van', name: 'Van' },
+          { id: 'coupe', name: 'Coupe' }
+        ];
+      }
     });
   }
 
   ngOnInit() {
     this.initForm();
+    // Initialize with local default images for Android compatibility
+    if (!this.imageDisplayUrl) {
+      this.imageDisplayUrl = 'assets/imgs/about.svg';
+      this.imageUrl = 'assets/imgs/about.svg'; // Set the imageUrl for validation
+    }
+    if (!this.licenseDisplayUrl) {
+      this.licenseDisplayUrl = 'assets/icon/favicon.png';
+      // Set the form control value for license image
+      this.form.patchValue({
+        driverLicenseImage: 'assets/icon/favicon.png'
+      });
+    }
+
+    // Test connectivity on page load
+    this.testConnectivity();
+  }
+
+  async testConnectivity() {
+    try {
+      console.log('Testing Firebase connectivity...');
+      const isConnected = await this.avatar.testConnectivity();
+      console.log('Connectivity test result:', isConnected ? 'SUCCESS' : 'FAILED');
+    } catch (error) {
+      console.error('Connectivity test error:', error);
+    }
+  }
+
+  // Helper method to add timeout to promises
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+      )
+    ]);
+  }
+
+  // Method to reset form state in case of errors
+  private resetFormState() {
+    this.isSubmitting = false;
+    this.isUploading = false;
+    this.isUploadingLicense = false;
+  }
+
+  // Method to check if all required data is present for submission
+  isFormCompleteForSubmission(): boolean {
+    const formValid = this.form.valid;
+
+    // Accept both uploaded images (img_) and default images (assets/)
+    const hasProfileImage = this.imageUrl &&
+      (this.imageUrl.startsWith('img_') || this.imageUrl.startsWith('assets/'));
+
+    const licenseImageValue = this.form.get('driverLicenseImage')?.value;
+    const hasLicenseImage = licenseImageValue &&
+      (licenseImageValue.startsWith('img_') || licenseImageValue.startsWith('assets/'));
+
+    console.log('Form validation check:', {
+      formValid,
+      hasProfileImage,
+      hasLicenseImage,
+      imageUrl: this.imageUrl,
+      licenseImageValue: licenseImageValue
+    });
+
+    return formValid && hasProfileImage && hasLicenseImage;
   }
 
   private initForm() {
@@ -126,9 +208,7 @@ export class DetailsPage implements OnInit {
           Validators.pattern('^[A-Z0-9-]*$')
         ]
       }),
-      driverLicenseImage: new FormControl('', {
-        validators: [Validators.required]
-      })
+      driverLicenseImage: new FormControl('')
     });
 
     // Monitor form changes with shorter debounce time
@@ -151,90 +231,29 @@ export class DetailsPage implements OnInit {
       });
   }
 
-  async changeImage(source: CameraSource) {
-    const loading = await this.loadingController.create({
-      message: 'Uploading image...'
-    });
-
-    try {
-      console.log('Getting photo from camera/gallery...');
-      const image = await Camera.getPhoto({
-        quality: 90,
-        allowEditing: false,
-        resultType: CameraResultType.Base64,
-        source: source,
-      });
-
-      console.log('Photo obtained, starting upload...');
-
-      if (image) {
-        await loading.present();
-        this.isUploading = true;
-
-        if (!this.user?.uid) {
-          throw new Error('Profile UID is missing');
-        }
-
-        console.log('Calling avatar.uploadImage...');
-        const result = await this.avatar.uploadImage(image, this.user.uid);
-        console.log('Upload result:', result);
-
-        if (!result) {
-          throw new Error('Upload failed - no URL returned');
-        }
-
-        this.imageUrl = result;
-        console.log('Image URL set:', this.imageUrl);
-
-        const successAlert = await this.alertController.create({
-          header: 'Success',
-          message: 'Image uploaded successfully!',
-          buttons: ['OK']
-        });
-        await successAlert.present();
-      }
-    } catch (error) {
-      console.error('changeImage error:', error);
-      const message = error.message?.includes('Photo URL is required')
-        ? 'The image is too big. Please try another image with a smaller size.'
-        : `Upload failed: ${error.message || 'Unknown error'}`;
-
-      const alert = await this.alertController.create({
-        header: await this.translate.get('DETAILS.ALERTS.UPLOAD_FAILED').toPromise(),
-        message: message,
-        buttons: ['OK'],
-      });
-      await alert.present();
-    } finally {
-      this.isUploading = false;
-      await loading.dismiss();
-    }
-  }
-
-
   async presentImageSourceActionSheet() {
     const actionSheet = await this.actionSheetController.create({
-      header: await this.translate.get('DETAILS.LICENSE_INFO.UPLOAD_PHOTO').toPromise(),
+      header: await this.translate.get('DETAILS.PROFILE_INFO.UPLOAD_PHOTO').toPromise() || 'Upload Profile Photo',
       buttons: [
         {
           text: await this.translate.get('DETAILS.BUTTONS.CAMERA').toPromise(),
           icon: 'camera',
           handler: () => {
-            this.changeImage(CameraSource.Camera);
+            this.getImage(CameraSource.Camera);
           }
         },
         {
           text: await this.translate.get('DETAILS.BUTTONS.GALLERY').toPromise(),
           icon: 'images',
           handler: () => {
-            this.changeImage(CameraSource.Photos);
+            this.getImage(CameraSource.Photos);
           }
         },
         {
           text: await this.translate.get('DETAILS.BUTTONS.FILE').toPromise(),
           icon: 'document',
           handler: () => {
-            this.selectFile();
+            this.getImage(CameraSource.Photos);
           }
         },
         {
@@ -247,153 +266,123 @@ export class DetailsPage implements OnInit {
     await actionSheet.present();
   }
 
-  async selectFile() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async (event: any) => {
-      const file = event.target.files[0];
-      if (file) {
-        const loading = await this.loadingController.create({
-          message: 'Uploading image...'
-        });
-        await loading.present();
-
-        const reader = new FileReader();
-        reader.onload = async (e: any) => {
-          try {
-            const image = {
-              base64String: e.target.result.split(',')[1]
-            };
-
-            console.log('Uploading file, size:', file.size);
-            const result = await this.avatar.uploadImage(image as Photo, this.user.uid);
-
-            if (!result) {
-              const alert = await this.alertController.create({
-                header: 'Upload failed',
-                message: 'There was a problem uploading your avatar.',
-                buttons: ['OK'],
-              });
-              await alert.present();
-            } else {
-              this.imageUrl = result;
-              console.log('File uploaded successfully:', result);
-            }
-          } catch (error) {
-            console.error('File upload error:', error);
-            const alert = await this.alertController.create({
-              header: 'Upload failed',
-              message: error.message || 'There was a problem uploading your avatar.',
-              buttons: ['OK'],
-            });
-            await alert.present();
-          } finally {
-            await loading.dismiss();
-          }
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-    input.click();
-  }
-
-  async reauthenticateWithPhoneNumber(): Promise<void> {
-    return new Promise<void>(async (resolve, reject) => {
-      try {
-        const user = this.authy.currentUser;
-        if (!user) throw new Error('User not authenticated');
-
-        // Clear and recreate reCAPTCHA container
-        const recaptchaContainerId = 'recaptcha-container';
-        let recaptchaContainer = document.getElementById(recaptchaContainerId);
-        if (recaptchaContainer) {
-          recaptchaContainer.remove();
-        }
-        recaptchaContainer = document.createElement('div');
-        recaptchaContainer.id = recaptchaContainerId;
-        document.body.appendChild(recaptchaContainer);
-
-        const recaptchaVerifier = new RecaptchaVerifier(recaptchaContainerId, {
-          size: 'invisible'
-        }, this.authy);
-
-        const phoneNumber = user.phoneNumber;
-        if (!phoneNumber) {
-          throw new Error('User phone number is missing');
-        }
-
-        const verificationResult = await signInWithPhoneNumber(this.authy, phoneNumber, recaptchaVerifier);
-
-        const alert = await this.alertController.create({
-          header: 'Verification',
-          inputs: [
-            {
-              name: 'verificationCode',
-              type: 'text',
-              placeholder: 'Enter verification code'
-            }
-          ],
-          buttons: [
-            {
-              text: 'Cancel',
-              role: 'cancel',
-              handler: () => reject(new Error('Verification cancelled'))
-            },
-            {
-              text: 'Verify',
-              handler: async (data) => {
-                try {
-                  const phoneCredential = PhoneAuthProvider.credential(
-                    verificationResult.verificationId,
-                    data.verificationCode
-                  );
-                  await reauthenticateWithCredential(user, phoneCredential);
-                  resolve();
-                } catch (error) {
-                  reject(error);
-                }
-              }
-            }
-          ]
-        });
-        await alert.present();
-
-      } catch (error) {
-        reject(error);
-      }
+  async getImage(source: CameraSource) {
+    const loading = await this.loadingController.create({
+      message: await this.translate.get('DETAILS.UPLOAD_STATUS.UPLOADING').toPromise() || 'Uploading image...'
     });
-  }
 
+    try {
+      console.log('Getting profile photo from camera/gallery...');
+      const image = await Camera.getPhoto({
+        quality: 70,
+        allowEditing: true,
+        resultType: CameraResultType.Base64,
+        source: source,
+        width: 400 // Limit width to reduce size
+      });
+
+      if (image.base64String) {
+        await loading.present();
+        this.isUploading = true;
+
+        console.log('Compressing and storing image...');
+        // Store image and get reference with timeout
+        const imageReference = await this.withTimeout(
+          this.compressImageForFirebase(image, 'profile'),
+          30000,
+          'Image processing timed out. Please try with a smaller image.'
+        );
+        this.imageUrl = imageReference;
+
+        console.log('Getting display URL...');
+        // Get display URL for immediate preview
+        this.imageDisplayUrl = await this.getImageDataUrl(imageReference, 'profile');
+
+        // Trigger change detection for form validation
+        this.form.updateValueAndValidity();
+
+        console.log('Profile image stored successfully with reference:', imageReference);
+
+        const successAlert = await this.alertController.create({
+          header: await this.translate.get('COMMON.SUCCESS').toPromise() || 'Success',
+          message: await this.translate.get('DETAILS.ALERTS.PROFILE_UPLOAD_SUCCESS').toPromise() || 'Profile image uploaded successfully!',
+          buttons: ['OK']
+        });
+        await successAlert.present();
+      } else {
+        throw new Error('No image data received from camera');
+      }
+    } catch (error: any) {
+      console.error('getImage error:', error);
+
+      let message = 'Upload failed. Please try again.';
+
+      if (error.message?.includes('User cancelled')) {
+        // Don't show error for user cancellation
+        return;
+      } else if (error.message?.includes('Photo URL is required') || error.message?.includes('too big')) {
+        message = await this.translate.get('DETAILS.ALERTS.IMAGE_TOO_BIG').toPromise() || 'The image is too big. Please try another image with a smaller size.';
+      } else if (error.message?.includes('Permission')) {
+        message = 'Camera permission is required. Please enable camera access in your device settings.';
+      } else if (error.message?.includes('network') || error.message?.includes('Network')) {
+        message = 'Network error. Please check your internet connection and try again.';
+      } else {
+        message = await this.translate.get('DETAILS.ALERTS.UPLOAD_FAILED').toPromise() || `Upload failed: ${error.message || 'Unknown error'}`;
+      }
+
+      const alert = await this.alertController.create({
+        header: await this.translate.get('DETAILS.ALERTS.UPLOAD_FAILED').toPromise() || 'Upload Failed',
+        message: message,
+        buttons: ['OK'],
+      });
+      await alert.present();
+    } finally {
+      this.isUploading = false;
+      try {
+        await loading.dismiss();
+      } catch (dismissError) {
+        console.warn('Error dismissing loading:', dismissError);
+      }
+    }
+  }
 
   async updateProfile() {
-    if (this.form.invalid || this.isSubmitting) {
+    if (!this.isFormCompleteForSubmission() || this.isSubmitting) {
       this.markFormGroupTouched(this.form);
       return;
     }
 
     this.isSubmitting = true;
     let loading = await this.loadingController.create({
-      message: await this.translate.get('COMMON.PLEASE_WAIT').toPromise()
+      message: await this.translate.get('COMMON.PLEASE_WAIT').toPromise() || 'Please wait...'
     });
-    await loading.present();
 
     try {
-      if (!this.imageUrl || this.imageUrl.length > 1000) {
-        await loading.dismiss();
-        throw new Error('Photo URL is required and must be less than 1000 characters');
+      await loading.present();
+      console.log('Starting profile update process...');
+
+      // Validate profile image (accept both uploaded and default images)
+      if (!this.imageUrl || (!this.imageUrl.startsWith('img_') && !this.imageUrl.startsWith('assets/'))) {
+        throw new Error('Profile photo is required');
+      }
+
+      // Validate license image (accept both uploaded and default images)
+      const licenseImageUrl = this.form.get('driverLicenseImage')?.value;
+      if (!licenseImageUrl || (!licenseImageUrl.startsWith('img_') && !licenseImageUrl.startsWith('assets/'))) {
+        throw new Error('Driver license photo is required');
       }
 
       // Store current user reference
       const currentUser = this.authy.currentUser;
       if (!currentUser) {
-        throw new Error('No authenticated user found');
+        throw new Error('No authenticated user found. Please log in again.');
       }
 
-      // Update profile
+      console.log('Updating Firebase Auth profile...');
+      // Update profile (use a local asset for Firebase Auth since we store actual images in Firestore)
       await updateProfile(currentUser, {
         displayName: `${this.form.value.fullname} ${this.form.value.lastname}`,
-        photoURL: this.imageUrl,
+        photoURL: `assets/imgs/about.svg`,
       });
 
       const carInfo = {
@@ -408,108 +397,333 @@ export class DetailsPage implements OnInit {
         driverLicenseImage: this.form.value.driverLicenseImage,
       };
 
-      await Geolocation.checkPermissions();
-      const coordinates = await Geolocation.getCurrentPosition();
+      console.log('Checking location permissions...');
+      const permissionStatus = await Geolocation.checkPermissions();
+      console.log('Location permission status:', permissionStatus);
 
-      // Use stored user reference
-      await this.avatar.createNewDriver(
-        coordinates,
-        this.form.value.fullname + ' ' + this.form.value.lastname,
-        this.form.value.email,
-        currentUser.phoneNumber,
-        carInfo.carName,
-        carInfo.carType,
-        carInfo.plateNumber,
-        this.imageUrl,
-        driverInfo.driverLicenseImage,
-        driverInfo.driverLicense,
-        carInfo.mileage
+      if (permissionStatus.location !== 'granted') {
+        console.log('Requesting location permissions...');
+        const requestResult = await Geolocation.requestPermissions();
+        if (requestResult.location !== 'granted') {
+          throw new Error('Location permission is required to register as a driver. Please enable location access in your device settings.');
+        }
+      }
+
+      console.log('Getting current location...');
+      const coordinates = await this.withTimeout(
+        Geolocation.getCurrentPosition({
+          enableHighAccuracy: false,
+          timeout: 15000
+        }),
+        20000,
+        'Location request timed out. Please ensure GPS is enabled and try again.'
+      );
+      console.log('Location obtained:', coordinates);
+
+      console.log('Creating driver profile...');
+      // Use stored user reference with timeout
+      await this.withTimeout(
+        this.avatar.createNewDriver(
+          coordinates,
+          this.form.value.fullname + ' ' + this.form.value.lastname,
+          this.form.value.email,
+          currentUser.phoneNumber,
+          carInfo.carName,
+          carInfo.carType,
+          carInfo.plateNumber,
+          this.imageUrl,
+          driverInfo.driverLicenseImage,
+          driverInfo.driverLicense,
+          carInfo.mileage
+        ),
+        30000,
+        'Driver profile creation timed out. Please check your internet connection and try again.'
       );
 
-      await this.avatar.createCard('Cash', '0', 'cash', 'None');
+      console.log('Creating payment card...');
+      await this.withTimeout(
+        this.avatar.createCard('Cash', '0', 'cash', 'None'),
+        10000,
+        'Payment card creation timed out. Please try again.'
+      );
       this.approve2 = false;
 
+      console.log('Profile update completed successfully. Navigating to tabs...');
       // Navigate after successful update
       await this.router.navigateByUrl('tabs', { replaceUrl: true });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Profile update error:', error);
-      const errorMessage = this.getErrorMessage(error);
-      await this.overlay.showAlert('Error', errorMessage);
+
+      // Determine specific error message
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.code) {
+        switch (error.code) {
+          case 'auth/network-request-failed':
+            errorMessage = 'Network error. Please check your internet connection and try again.';
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = 'Too many requests. Please wait a moment and try again.';
+            break;
+          case 'permission-denied':
+            errorMessage = 'Permission denied. Please check your account permissions.';
+            break;
+          case 'unavailable':
+            errorMessage = 'Service temporarily unavailable. Please try again later.';
+            break;
+          default:
+            errorMessage = `Error (${error.code}): ${error.message || 'Unknown error occurred'}`;
+        }
+      }
+
+      // Show detailed error alert
+      const alert = await this.alertController.create({
+        header: 'Registration Failed',
+        message: errorMessage,
+        buttons: [
+          {
+            text: 'OK',
+            role: 'cancel'
+          },
+          {
+            text: 'Retry',
+            handler: () => {
+              // Allow user to retry
+              setTimeout(() => {
+                this.updateProfile();
+              }, 1000);
+            }
+          }
+        ]
+      });
+      await alert.present();
+
     } finally {
-      this.isSubmitting = false;
+      this.resetFormState();
       if (loading) {
-        await loading.dismiss();
+        try {
+          await loading.dismiss();
+        } catch (dismissError) {
+          console.warn('Error dismissing loading:', dismissError);
+        }
       }
     }
   }
 
   async selectDriverLicenseImage() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async (event: any) => {
-      const file = event.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = async (e: any) => {
-          const image = {
-            base64String: e.target.result.split(',')[1]
-          };
-          this.isUploading = true;
-          const result = await this.avatar.uploadImage(image as Photo, this.user.uid);
-          if (result) {
-            this.form.patchValue({ driverLicenseImage: result });
-          } else {
-            const alert = await this.alertController.create({
-              header: await this.translate.get('DETAILS.ALERTS.UPLOAD_FAILED').toPromise(),
-              message: await this.translate.get('DETAILS.ALERTS.UPLOAD_FAILED_MESSAGE').toPromise(),
-              buttons: ['OK'],
-            });
-            await alert.present();
-          }
-          this.isUploading = false;
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-    input.click();
-  }
-
-
-
-  initializeBackButtonCustomHandler() {
-    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(10, () => {
-      this.handleBackButton();
-    });
-  }
-
-  async handleBackButton() {
-    try {
-      await this.showExitConfirmation();
-    } catch (error) {
-      console.error('Error handling back button:', error);
-    }
-  }
-
-  async showExitConfirmation() {
-    const alert = await this.alertController.create({
-      header: 'Exit App',
-      message: 'Are you sure you want to exit the app?',
+    const actionSheet = await this.actionSheetController.create({
+      header: await this.translate.get('DETAILS.LICENSE_INFO.UPLOAD_PHOTO').toPromise(),
       buttons: [
         {
-          text: 'Cancel',
-          role: 'cancel'
+          text: await this.translate.get('DETAILS.BUTTONS.CAMERA').toPromise(),
+          icon: 'camera',
+          handler: () => {
+            this.getLicenseImage(CameraSource.Camera);
+          }
         },
         {
-          text: 'Exit',
+          text: await this.translate.get('DETAILS.BUTTONS.GALLERY').toPromise(),
+          icon: 'images',
           handler: () => {
-            navigator['app'].exitApp();
+            this.getLicenseImage(CameraSource.Photos);
           }
+        },
+        {
+          text: await this.translate.get('DETAILS.BUTTONS.FILE').toPromise(),
+          icon: 'document',
+          handler: () => {
+            this.getLicenseImage(CameraSource.Photos);
+          }
+        },
+        {
+          text: await this.translate.get('DETAILS.BUTTONS.CANCEL').toPromise(),
+          icon: 'close',
+          role: 'cancel'
         }
       ]
     });
-    await alert.present();
+    await actionSheet.present();
+  }
+
+  async getLicenseImage(source: CameraSource) {
+    const loading = await this.loadingController.create({
+      message: await this.translate.get('DETAILS.UPLOAD_STATUS.UPLOADING').toPromise() || 'Uploading image...'
+    });
+
+    try {
+      console.log('Getting license photo from camera/gallery...');
+      const image = await Camera.getPhoto({
+        quality: 70,
+        allowEditing: true,
+        resultType: CameraResultType.Base64,
+        source: source,
+        width: 400 // Limit width to reduce size
+      });
+
+      if (image.base64String) {
+        await loading.present();
+        this.isUploadingLicense = true;
+
+        // Store image and get reference
+        const imageReference = await this.compressImageForFirebase(image, 'license');
+        this.form.patchValue({
+          driverLicenseImage: imageReference
+        });
+
+        // Get display URL for immediate preview
+        this.licenseDisplayUrl = await this.getImageDataUrl(imageReference, 'license');
+
+        // Trigger change detection for form validation
+        this.form.updateValueAndValidity();
+
+        console.log('License image stored successfully with reference:', imageReference);
+
+        const successAlert = await this.alertController.create({
+          header: await this.translate.get('COMMON.SUCCESS').toPromise() || 'Success',
+          message: await this.translate.get('DETAILS.ALERTS.LICENSE_UPLOAD_SUCCESS').toPromise() || 'License image uploaded successfully!',
+          buttons: ['OK']
+        });
+        await successAlert.present();
+      }
+    } catch (error) {
+      console.error('getLicenseImage error:', error);
+      const message = error.message?.includes('Photo URL is required')
+        ? await this.translate.get('DETAILS.ALERTS.IMAGE_TOO_BIG').toPromise() || 'The image is too big. Please try another image with a smaller size.'
+        : await this.translate.get('DETAILS.ALERTS.UPLOAD_FAILED').toPromise() || `Upload failed: ${error.message || 'Unknown error'}`;
+
+      const alert = await this.alertController.create({
+        header: await this.translate.get('DETAILS.ALERTS.UPLOAD_FAILED').toPromise() || 'Upload Failed',
+        message: message,
+        buttons: ['OK'],
+      });
+      await alert.present();
+    } finally {
+      this.isUploadingLicense = false;
+      await loading.dismiss();
+    }
+  }
+
+  private async compressImageForFirebase(image: Photo, type: 'profile' | 'license'): Promise<string> {
+    try {
+      if (!image.base64String) {
+        throw new Error('No image data provided');
+      }
+
+      if (!this.user?.uid) {
+        throw new Error('User not authenticated');
+      }
+
+      // Store the full-quality compressed image in Firestore for actual use
+      const fullQualityBase64 = await this.compressImage(image.base64String, 0.8, 800, 600);
+
+      // Store full image in Firestore
+      const timestamp = Date.now();
+      const imageId = `${type}_${timestamp}`;
+      const imageDocRef = doc(this.firestore, `drivers/${this.user.uid}/images/${imageId}`);
+
+      await setDoc(imageDocRef, {
+        imageData: fullQualityBase64,
+        type: type,
+        uploadedAt: serverTimestamp(),
+        uploadedBy: this.user.uid
+      });
+
+      // Return a reference ID that we can use to retrieve the full image
+      const imageReference = `img_${this.user.uid}_${imageId}`;
+
+      console.log('Image stored in Firestore with ID:', imageReference);
+      console.log('Full quality image size:', fullQualityBase64.length, 'characters');
+
+      return imageReference;
+    } catch (error) {
+      console.error('Error processing image:', error);
+      throw error;
+    }
+  }
+
+  // Method to retrieve actual image data for display
+  async getImageDataUrl(imageReference: string, type: 'profile' | 'license' = 'profile'): Promise<string> {
+    try {
+      // Handle default images
+      if (!imageReference || imageReference === 'default_profile') {
+        return 'assets/imgs/about.svg';
+      }
+
+      if (imageReference === 'default_license') {
+        return 'assets/icon/favicon.png';
+      }
+
+      if (!imageReference.startsWith('img_')) {
+        // Return appropriate default based on type
+        return type === 'profile' ? 'assets/imgs/about.svg' : 'assets/icon/favicon.png';
+      }
+
+      // Extract user ID and image ID from reference
+      const parts = imageReference.split('_');
+      if (parts.length < 3) {
+        return type === 'profile' ? 'assets/imgs/about.svg' : 'assets/icon/favicon.png';
+      }
+
+      const userId = parts[1];
+      const imageId = parts.slice(2).join('_');
+
+      // Get image from Firestore
+      const imageDocRef = doc(this.firestore, `drivers/${userId}/images/${imageId}`);
+      const imageDoc = await getDoc(imageDocRef);
+
+      if (imageDoc.exists()) {
+        const data = imageDoc.data();
+        return `data:image/jpeg;base64,${data.imageData}`;
+      }
+
+      // Return default if image not found
+      return type === 'profile' ? 'assets/imgs/about.svg' : 'assets/icon/favicon.png';
+    } catch (error) {
+      console.error('Error retrieving image:', error);
+      // Return default on error
+      return type === 'profile' ? 'assets/imgs/about.svg' : 'assets/icon/favicon.png';
+    }
+  }
+
+  private async compressImage(base64: string, quality: number = 0.7, maxWidth: number = 800, maxHeight: number = 600): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      img.onload = () => {
+        // Calculate new dimensions
+        let { width, height } = img;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality).split(',')[1];
+
+        console.log('Image compressed from', base64.length, 'to', compressedBase64.length, 'characters');
+        resolve(compressedBase64);
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image for compression'));
+      img.src = `data:image/jpeg;base64,${base64}`;
+    });
   }
 
   private markFormGroupTouched(formGroup: FormGroup) {
@@ -522,6 +736,10 @@ export class DetailsPage implements OnInit {
   }
 
   private getErrorMessage(error: any): string {
+    if (error.message) {
+      return error.message;
+    }
+
     switch (error.code) {
       case 'auth/requires-recent-login':
         return 'Please re-authenticate to update your email';
@@ -531,48 +749,18 @@ export class DetailsPage implements OnInit {
         return 'Please enter a valid email address';
       case 'auth/operation-not-allowed':
         return 'Email verification is required before changing email';
+      case 'auth/network-request-failed':
+        return 'Network error. Please check your internet connection.';
+      case 'auth/too-many-requests':
+        return 'Too many requests. Please wait and try again.';
+      case 'permission-denied':
+        return 'Permission denied. Please check your account permissions.';
+      case 'unavailable':
+        return 'Service temporarily unavailable. Please try again later.';
+      case 'failed-precondition':
+        return 'Database operation failed. Please try again.';
       default:
-        return error.message || 'An unexpected error occurred';
+        return error.toString() || 'An unexpected error occurred';
     }
   }
-
-  async createNewDriver(coord: any, name: string, email: string, phone: any, car: string, cartype: string, plate: string, imageUrl: string, document: string, license: any, mileage: any): Promise<void> {
-    try {
-      const loc: Drivers = {
-        geohash: geohashForLocation([coord.coords.latitude, coord.coords.longitude]),
-        Driver_lat: coord.coords.latitude,
-        Driver_lng: coord.coords.longitude,
-        Driver_id: this.authy.currentUser.uid,
-        Driver_name: name,
-        Driver_car: car,
-        Driver_imgUrl: imageUrl,
-        Driver_rating: 0,
-        distance: 0,
-        duration: 0,
-        seats: 1,
-        start: false,
-        stop: false,
-        intransit: false,
-        cancel: false,
-        Driver_cartype: cartype,
-        Driver_plate: plate,
-        Driver_num_rides: 0,
-        Document: document,
-        Driver_email: email,
-        Driver_phone: phone,
-        onlineState: false,
-        Earnings: 0,
-        license: license,
-        mileage: mileage,
-        isApproved: false,
-        submissionDate: serverTimestamp()
-      };
-      await setDoc(doc(this.firestore, "Drivers", this.authy.currentUser.uid), { ...loc });
-      this.router.navigateByUrl('/waiting', { replaceUrl: true });
-    } catch (e) {
-      console.error('Error creating new driver:', e);
-      throw new Error('Error creating new driver');
-    }
-  }
-
 }

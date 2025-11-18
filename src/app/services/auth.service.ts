@@ -36,25 +36,41 @@ export class AuthService {
 
   // Initialize RecaptchaVerifier
   recaptcha() {
-    this.appVerifier = new RecaptchaVerifier('sign-in-button', {
-      size: 'invisible',
-      callback: (response) => {
-        console.log(response);
-      },
-      'expired-callback': () => {
-        console.log('Recaptcha expired');
+    try {
+      this.appVerifier = new RecaptchaVerifier('sign-in-button', {
+        size: 'invisible',
+        callback: (response) => {
+          console.log('reCAPTCHA solved:', response);
+        },
+        'expired-callback': () => {
+          console.log('reCAPTCHA expired');
+        }
+      }, this.auth);
+      
+      // Only render on web platform
+      if (typeof window !== 'undefined' && window.document && !window['Capacitor']) {
+        this.appVerifier.render();
       }
-    }, this.auth);
-    this.appVerifier.render();
+    } catch (error) {
+      console.error('Error initializing RecaptchaVerifier:', error);
+    }
   }
 
   async signInWithPhoneNumber(phoneNumber: string) {
     try {
-      if (!this.appVerifier) this.recaptcha();
+      console.log('Attempting phone auth for:', phoneNumber);
+      console.log('Platform check - Capacitor:', !!window['Capacitor']);
+      
+      // Always ensure we have a verifier
+      if (!this.appVerifier) {
+        this.recaptcha();
+      }
+      
       const confirmationResult = await signInWithPhoneNumber(this.auth, phoneNumber, this.appVerifier);
       this.confirmationResult = confirmationResult;
       return confirmationResult;
     } catch (e) {
+      console.error('Phone auth error:', e);
       throw(e);
     }
   }

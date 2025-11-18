@@ -21,9 +21,9 @@ import { LanguageService } from '../services/language.service';
 })
 export class LoginPage implements OnInit {
   form: FormGroup;
-  CountryCode: any;
+  CountryCode: any = '+60';
   CountryJson = environment.CountryJson;
-  flag: any = "https://cdn.kcak11.com/CountryFlags/countries/ng.svg";
+  flag: any = "https://cdn.kcak11.com/CountryFlags/countries/my.svg";
   filteredCountries = [];
   user: any;
   approve: boolean;
@@ -36,7 +36,7 @@ export class LoginPage implements OnInit {
     autoplay: true
   };
 
-  numberT: string;
+  numberT: string = '+60';
   backButtonSubscription: any;
 
   constructor(
@@ -52,6 +52,7 @@ export class LoginPage implements OnInit {
     private translate: TranslateService,
     private languageService: LanguageService
   ) {
+    this.setDefaultCountry();
     this.detectUserCountry();
   }
 
@@ -64,17 +65,19 @@ export class LoginPage implements OnInit {
 
     this.filteredCountries = this.CountryJson;
 
-    // Initialize ReCaptcha verifier
-    this.recaptchaVerifier = new RecaptchaVerifier('sign-in-button', {
-      'size': 'invisible',
-      'callback': (response) => {
-        // reCAPTCHA solved - allow signIn
-        this.signIn();
-      },
-      'expired-callback': () => {
-        // Response expired - handle expired reCAPTCHA
-      }
-    }, this.authY);
+    // Initialize ReCaptcha verifier only for web platform
+    if (typeof window !== 'undefined' && window.document && !window['Capacitor']) {
+      this.recaptchaVerifier = new RecaptchaVerifier('sign-in-button', {
+        'size': 'invisible',
+        'callback': (response) => {
+          // reCAPTCHA solved - allow signIn
+          this.signIn();
+        },
+        'expired-callback': () => {
+          // Response expired - handle expired reCAPTCHA
+        }
+      }, this.authY);
+    }
     this.initializeBackButtonCustomHandler(); // Initialize back button handler
   }
 
@@ -123,12 +126,12 @@ export class LoginPage implements OnInit {
         this.form.markAllAsTouched();
         return;
       }
-      
+
       this.overlay.showLoader('');
       const fullPhoneNumber = this.numberT + this.form.value.phone;
-      
+
       const confirmationResult = await this.auth.signInWithPhoneNumber(fullPhoneNumber);
-      
+
       let storedOTP = localStorage.getItem('defaultOTP');
       if (!storedOTP) {
         storedOTP = '';
@@ -171,12 +174,12 @@ export class LoginPage implements OnInit {
       const randomDefaultNumber = defaultNumbers[Math.floor(Math.random() * defaultNumbers.length)];
       this.form.controls['phone'].setValue(randomDefaultNumber);
       localStorage.setItem('defaultOTP', '123456');
-      
+
       this.overlay.showAlert(
         await this.translate.get('DAILY_SMS_LIMIT').toPromise(),
         await this.translate.get('USE_DEFAULT_NUMBER').toPromise() + `: +234:${randomDefaultNumber}`
       );
-      
+
       this.overlay.hideLoader();
       this.approve2 = false;
     }
@@ -190,7 +193,7 @@ export class LoginPage implements OnInit {
 
   async handleBackButton() {
     try {
-        await this.showExitConfirmation();
+      await this.showExitConfirmation();
     } catch (error) {
       console.error('Error handling back button:', error);
     }
@@ -220,27 +223,75 @@ export class LoginPage implements OnInit {
     this.languageService.setLanguage(lang);
   }
 
+  setDefaultCountry() {
+    // Set Malaysia as default
+    const malaysia = this.CountryJson.find(c => c.isoCode.toLowerCase() === 'my');
+    if (malaysia) {
+      this.CountryCode = malaysia.dialCode;
+      this.numberT = malaysia.dialCode;
+      this.flag = malaysia.flag;
+    }
+  }
+
   async detectUserCountry() {
     try {
-      const response = await fetch('https://ipapi.co/json/');
-      const data = await response.json();
-      const countryCode = data.country_code.toLowerCase();
-      
-      // Find matching country from CountryJson
-      const country = this.CountryJson.find(c => 
-        c.isoCode.toLowerCase() === countryCode
-      );
-      
-      if (country) {
-        this.CountryCode = country.dialCode;
-        this.numberT = country.dialCode;
-        this.flag = `https://cdn.kcak11.com/CountryFlags/countries/${countryCode}.svg`;
+      // Try multiple APIs for better reliability
+      let countryCode = await this.tryCountryDetection();
+
+      if (countryCode) {
+        // Find matching country from CountryJson
+        const country = this.CountryJson.find(c =>
+          c.isoCode.toLowerCase() === countryCode.toLowerCase()
+        );
+
+        if (country) {
+          this.CountryCode = country.dialCode;
+          this.numberT = country.dialCode;
+          this.flag = country.flag;
+          console.log('Country detected:', country.name, country.dialCode);
+        }
       }
     } catch (error) {
       console.error('Error detecting country:', error);
-      // Fallback to default
-      this.CountryCode = '+234';
-      this.numberT = '+234';
+      // Keep the default Malaysia settings - don't override them
+      console.log('Using default country: Malaysia (+60)');
     }
+  }
+
+  private async tryCountryDetection(): Promise<string | null> {
+    const apis = [
+      'https://ipapi.co/json/',
+      'https://api.ipify.org?format=json', // Fallback API
+      'https://httpbin.org/ip' // Another fallback
+    ];
+
+    for (const apiUrl of apis) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+        const response = await fetch(apiUrl, {
+          signal: controller.signal,
+          headers: { 'Accept': 'application/json' }
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+
+          // Handle different API response formats
+          if (data.country_code) {
+            return data.country_code;
+          }
+          // If we get IP, we could use another service, but for now just return null
+        }
+      } catch (error) {
+        console.log(`Failed to fetch from ${apiUrl}:`, error);
+        continue;
+      }
+    }
+
+    return null;
   }
 }
